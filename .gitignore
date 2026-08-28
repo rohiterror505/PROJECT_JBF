@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+lucky_draw_coupons/
+left_photo.png
+right_photo.png
+coupon_sales.xlsx

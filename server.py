@@ -1,0 +1,386 @@
+#!/usr/bin/env python3
+"""JAI BHADRA FOUNDATION - Lucky Draw Coupon Manager (Web UI).
+
+A small Flask app that reuses rohit.py for ALL business logic
+(coupon rendering, Excel tracking, validation).  The browser handles
+the UI, so there is no desktop GUI thread to freeze.
+
+RUN:
+    python server.py
+Then open http://127.0.0.1:5000 in your browser.
+"""
+
+import io
+import base64
+import traceback
+from pathlib import Path
+
+from flask import Flask, jsonify, request, send_file, render_template, send_from_directory
+
+import rohit
+
+app = Flask(__name__)
+app.config["TEMPLATES_AUTO_RELOAD"] = True
+app.jinja_env.auto_reload = True
+
+
+# ------------------------------------------------------------------
+# Helpers
+# ------------------------------------------------------------------
+
+def _rows_to_dicts(rows):
+    """Turn the tuple rows from list_sales into JSON-friendly dicts."""
+    out = []
+    for r in rows:
+        if len(r) >= 11:
+            sno, name, phone, address, start, end, qty, date, stype, set_sz, amount = r[:11]
+        elif len(r) >= 9:
+            sno, name, phone, address, start, end, qty, date, stype = r[:9]
+            set_sz = qty if stype == "PHYSICAL" else None
+            amount = (rohit.price_for_set_size(qty) if stype == "PHYSICAL"
+                      else qty * rohit.PRICE_PER_COUPON)
+        else:
+            sno, name, phone, address, start, end, qty, date = r
+            stype = "SALE"
+            set_sz = None
+            amount = qty * rohit.PRICE_PER_COUPON
+        out.append({
+            "sno": sno,
+            "name": name or "",
+            "phone": phone or "",
+            "address": address or "",
+            "start": start,
+            "end": end,
+            "qty": qty,
+            "date": date or "",
+            "type": stype or "SALE",
+            "set_size": set_sz,
+            "amount": amount,
+        })
+    return out
+
+
+def _ok(payload=None):
+    resp = {"success": True}
+    if payload is not None:
+        resp.update(payload)
+    return jsonify(resp)
+
+
+def _err(msg, code=400):
+    return jsonify({"success": False, "error": str(msg)}), code
+
+
+# ------------------------------------------------------------------
+# Page
+# ------------------------------------------------------------------
+
+@app.route("/")
+def index():
+    # Serve the HTML directly so edits are picked up immediately without
+    # depending on Jinja's bytecode cache.
+    import os
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates", "index.html")
+    with open(p, "r", encoding="utf-8") as f:
+        html = f.read()
+    from flask import Response
+    resp = Response(html, mimetype="text/html")
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
+
+
+# ------------------------------------------------------------------
+# API
+# ------------------------------------------------------------------
+
+@app.route("/api/state")
+def api_state():
+    """One call that returns everything the dashboard / sales / gaps tabs
+    need, so the browser can refresh all panels from a single request."""
+    try:
+        rohit.ensure_sales_file()
+        rows = rohit.list_sales(print_it=False)
+        ranges = rohit.get_sold_ranges()
+    except RuntimeError as exc:
+        return _err(str(exc), 500)
+    except Exception as exc:
+        return _err(str(exc), 500)
+
+    sales = _rows_to_dicts(rows)
+
+    # Summary stats (what the dashboard cards show).
+    sale_count = sum(1 for s in sales if s["type"] == "SALE")
+    phys_count = sum(1 for s in sales if s["type"] == "PHYSICAL")
+    total_qty = sum((s["qty"] or 0) for s in sales)
+    # Revenue is the sum of each row's stored donation amount (set-based
+    # pricing) rather than a flat qty * 100.
+    revenue = sum((s["amount"] or 0) for s in sales)
+
+    assigned = set()
+    for s, e in ranges:
+        for n in range(s, e + 1):
+            assigned.add(n)
+    gaps = 0
+    gap_ranges = []
+    if assigned:
+        low, high = min(assigned), max(assigned)
+        missing = [n for n in range(low, high + 1) if n not in assigned]
+        gaps = len(missing)
+        # collapse into runs
+        if missing:
+            run_s = run_e = missing[0]
+            for n in missing[1:]:
+                if n == run_e + 1:
+                    run_e = n
+                else:
+                    gap_ranges.append((run_s, run_e))
+                    run_s = run_e = n
+            gap_ranges.append((run_s, run_e))
+        low_str = f"{low:04d}"
+        high_str = f"{high:04d}"
+    else:
+        low_str = high_str = "-"
+
+    last_label = "-"
+    if sales:
+        s = sales[-1]
+        last_label = (
+            f"{s['start']:04d}" if s["start"] == s["end"]
+            else f"{s['start']:04d}-{s['end']:04d}"
+        )
+
+    return _ok({
+        "sales": sales,
+        "max_coupon": rohit.MAX_COUPON,
+        "draw_line": rohit.DRAW_LINE,
+        "website": rohit.WEBSITE,
+        "summary": {
+            "total_sold": total_qty,
+            "revenue": revenue,
+            "remaining": rohit.MAX_COUPON - total_qty,
+            "gaps": gaps,
+            "sale_rows": sale_count,
+            "phys_rows": phys_count,
+            "last_coupon": last_label,
+            "low": low_str,
+            "high": high_str,
+            "span": (high - low + 1) if assigned else 0,
+            "assigned": len(assigned),
+        },
+        "gap_ranges": [
+            {"start": s, "end": e, "count": e - s + 1} for s, e in gap_ranges
+        ],
+    })
+
+
+@app.route("/api/preview")
+def api_preview():
+    """Render a coupon preview PNG in memory and return it as base64 so the
+    browser can show it in an <img>.  Nothing is written to disk."""
+    try:
+        start = int(request.args.get("start", 1))
+        end = int(request.args.get("end", start))
+        name = request.args.get("name") or None
+        phone = request.args.get("phone") or None
+        address = request.args.get("address") or None
+        set_size = request.args.get("set_size", type=int)
+    except (TypeError, ValueError):
+        return _err("Invalid parameters")
+
+    # Decide the printed donation amount for the preview.
+    if set_size is not None and set_size > 0:
+        amount = rohit.price_for_set_size(set_size)
+    else:
+        amount = (end - start + 1) * rohit.PRICE_PER_COUPON
+
+    try:
+        img = rohit._render_coupon(
+            start, end, buyer=name, phone=phone, address=address, amount=amount
+        ).convert("RGB")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        return _ok({"image": "data:image/png;base64," + b64})
+    except Exception as exc:
+        return _err(str(exc), 500)
+
+
+@app.route("/api/sample")
+def api_sample():
+    """Render a sample coupon PNG in memory and return it as base64.
+    Nothing is written to disk or the Excel tracker — this is purely for
+    showing someone what a coupon looks like."""
+    try:
+        num = int(request.args.get("num", 0))
+    except (TypeError, ValueError):
+        return _err("Invalid coupon number")
+    try:
+        img = rohit._render_coupon(
+            num, num, amount=rohit.PRICE_PER_COUPON, sample=True
+        ).convert("RGB")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        return _ok({"image": "data:image/png;base64," + b64})
+    except Exception as exc:
+        return _err(str(exc), 500)
+
+
+@app.route("/api/sale", methods=["POST"])
+def api_sale():
+    """Record a normal sale: generate coupon PNG + append to Excel."""
+    data = request.get_json(force=True)
+    try:
+        name = (data.get("name") or "").strip()
+        phone = (data.get("phone") or "").strip()
+        address = (data.get("address") or "").strip()
+        start = int(data.get("start"))
+        qty = int(data.get("qty", 1))
+    except (TypeError, ValueError):
+        return _err("Invalid parameters")
+
+    if not name:
+        return _err("Buyer name is required.")
+    end = start + qty - 1
+    if end > rohit.MAX_COUPON:
+        return _err(f"End {end:04d} exceeds max {rohit.MAX_COUPON}.")
+
+    amount = qty * rohit.PRICE_PER_COUPON
+    try:
+        overlap = rohit.is_already_sold(start, end)
+        if overlap:
+            return _err(
+                f"Coupons {overlap[0]:04d}-{overlap[1]:04d} are already sold."
+            )
+        filename = rohit.create_coupon(
+            start, end, buyer=name or None,
+            phone=phone or None, address=address or None, amount=amount,
+        )
+        rohit.record_sale(name, phone, address, start, end, amount=amount)
+        return _ok({"message": f"Sale complete! Coupons {start:04d}-{end:04d} saved as {filename}.",
+                     "filename": filename})
+    except RuntimeError as exc:
+        return _err(str(exc), 500)
+    except Exception as exc:
+        return _err(str(exc), 500)
+
+
+@app.route("/api/physical", methods=["POST"])
+def api_physical():
+    """Generate physical coupon sets (no buyer)."""
+    data = request.get_json(force=True)
+    try:
+        set_size = int(data.get("set_size", 10))
+        start = int(data.get("start"))
+        num_sets = int(data.get("num_sets", 1))
+    except (TypeError, ValueError):
+        return _err("Invalid parameters")
+
+    end_block = start + num_sets * set_size - 1
+    if end_block > rohit.MAX_COUPON:
+        return _err(f"Would end at {end_block:04d}, exceeds {rohit.MAX_COUPON}.")
+    if set_size < 1 or num_sets < 1:
+        return _err("Set size and number of sets must be >= 1.")
+
+    set_amount = rohit.price_for_set_size(set_size)
+    try:
+        overlap = rohit.is_already_sold(start, end_block)
+        if overlap:
+            return _err(
+                f"Coupons {overlap[0]:04d}-{overlap[1]:04d} already sold."
+            )
+        generated = 0
+        for i in range(num_sets):
+            s = start + i * set_size
+            e = s + set_size - 1
+            try:
+                rohit.create_coupon(s, e, amount=set_amount)
+                rohit.record_sale(
+                    None, None, None, s, e, sale_type="PHYSICAL",
+                    set_size=set_size, amount=set_amount,
+                )
+                generated += 1
+            except Exception:
+                pass
+        return _ok({
+            "message": f"Done. {generated}/{num_sets} set(s) generated. "
+                        f"Numbers {start:04d}-{end_block:04d} locked.",
+            "generated": generated,
+        })
+    except RuntimeError as exc:
+        return _err(str(exc), 500)
+    except Exception as exc:
+        return _err(str(exc), 500)
+
+
+@app.route("/api/sale/<int:sno>", methods=["DELETE"])
+def api_delete_sale(sno):
+    del_png = request.args.get("png", "0") in ("1", "true", "yes")
+    try:
+        ok = rohit.delete_sale(sno, delete_png=del_png)
+        if ok:
+            return _ok({"message": f"Sale #{sno} deleted."})
+        return _err(f"No sale #{sno}.", 404)
+    except RuntimeError as exc:
+        return _err(str(exc), 500)
+
+
+@app.route("/api/delete/physical/range", methods=["POST"])
+def api_delete_physical_range():
+    data = request.get_json(force=True)
+    try:
+        s = int(data.get("start"))
+        e = int(data.get("end"))
+    except (TypeError, ValueError):
+        return _err("Invalid parameters")
+    del_pngs = bool(data.get("delete_pngs", True))
+    try:
+        count = rohit.delete_physical_by_range(s, e, delete_pngs=del_pngs)
+        return _ok({"message": f"Deleted {count} physical set(s) in {s:04d}-{e:04d}.",
+                     "count": count})
+    except RuntimeError as exc:
+        return _err(str(exc), 500)
+
+
+@app.route("/api/delete/physical/all", methods=["POST"])
+def api_delete_physical_all():
+    data = request.get_json(force=True) if request.data else {}
+    del_pngs = bool(data.get("delete_pngs", True))
+    try:
+        count = rohit.delete_all_physical(delete_pngs=del_pngs)
+        return _ok({"message": f"Deleted {count} physical set(s).", "count": count})
+    except RuntimeError as exc:
+        return _err(str(exc), 500)
+
+
+@app.route("/api/delete/all", methods=["POST"])
+def api_delete_all_sales():
+    data = request.get_json(force=True) if request.data else {}
+    del_pngs = bool(data.get("delete_pngs", False))
+    try:
+        count = rohit.delete_all_sales(delete_pngs=del_pngs)
+        return _ok({"message": f"Deleted all {count} sale(s).", "count": count})
+    except RuntimeError as exc:
+        return _err(str(exc), 500)
+
+
+@app.route("/api/coupon-image/<path:filename>")
+def api_coupon_image(filename):
+    """Serve a generated coupon PNG from the output folder."""
+    path = rohit.OUTPUT_DIR / filename
+    if not path.exists():
+        return _err("File not found", 404)
+    return send_file(str(path), mimetype="image/png")
+
+
+if __name__ == "__main__":
+    print("=" * 60)
+    print("JAI BHADRA FOUNDATION - Lucky Draw Coupon Manager (Web)")
+    print("=" * 60)
+    print(f"Open http://127.0.0.1:5000 in your browser")
+    print(f"Output folder: {rohit.OUTPUT_DIR}")
+    print(f"Sales file  : {rohit.SALES_FILE}")
+    print("=" * 60)
+    app.run(host="127.0.0.1", port=5000, debug=False)

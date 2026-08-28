@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jai Bhadra Foundation — Lucky Draw Manager</title>
+<style>
+  :root {
+    --maroon: #9A2A00;
+    --maroon-2: #C44404;
+    --maroon-light: #E85D04;
+    --gold: #C99B2E;
+    --gold-light: #F3D264;
+    --gold-pale: #FFF6D6;
+    --gold-soft: #FAEFC4;
+    --cream: #FBF7EE;
+    --cream-2: #FFFEFA;
+    --white: #FFFFFF;
+    --ink: #1A1614;
+    --ink-2: #4A4340;
+    --muted: #8A8079;
+    --line: #EAE3D5;
+    --line-2: #F2EDE2;
+    --green: #1B7A3D;
+    --green-bg: #E5F3EA;
+    --red: #B33A1A;
+    --red-bg: #FBE9E4;
+    --shadow-sm: 0 1px 3px rgba(26,22,20,0.06), 0 1px 2px rgba(26,22,20,0.04);
+    --shadow-md: 0 4px 12px rgba(26,22,20,0.08), 0 2px 4px rgba(26,22,20,0.04);
+    --shadow-lg: 0 12px 32px rgba(26,22,20,0.10), 0 4px 8px rgba(26,22,20,0.06);
+    --radius: 10px;
+    --radius-sm: 7px;
+    --radius-xs: 5px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Segoe UI", -apple-system, "Helvetica Neue", sans-serif;
+    background: var(--cream);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* ---------- App shell ---------- */
+  .app { display: flex; min-height: 100vh; }
+
+  .sidebar {
+    width: 244px;
+    background: linear-gradient(180deg, var(--maroon) 0%, #7A1F00 100%);
+    color: var(--gold-light);
+    padding: 0;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    box-shadow: 2px 0 12px rgba(0,0,0,0.12);
+    z-index: 10;
+  }
+  .brand {
+    padding: 22px 20px 18px;
+    border-bottom: 1px solid rgba(201,155,46,0.28);
+    text-align: center;
+  }
+  .brand .logo {
+    width: 44px; height: 44px;
+    margin: 0 auto 10px;
+    background: var(--gold);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; font-weight: 800; color: var(--maroon);
+    box-shadow: 0 0 0 3px rgba(243,210,100,0.3);
+  }
+  .brand h1 {
+    font-size: 15px; font-weight: 700; letter-spacing: 0.4px;
+    color: var(--gold-light);
+  }
+  .brand .sub {
+    font-size: 11px; color: rgba(243,210,100,0.7);
+    margin-top: 3px; letter-spacing: 0.5px;
+  }
+  .nav { flex: 1; padding: 14px 10px; overflow-y: auto; }
+  .nav-item {
+    display: flex; align-items: center; gap: 11px;
+    padding: 11px 14px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    color: rgba(243,210,100,0.78);
+    font-weight: 600; font-size: 13.5px;
+    margin-bottom: 3px;
+    transition: background 0.18s, color 0.18s;
+    border: none; background: transparent;
+    width: 100%; text-align: left;
+  }
+  .nav-item:hover { background: rgba(255,255,255,0.08); color: var(--gold-light); }
+  .nav-item.active {
+    background: rgba(255,255,255,0.14);
+    color: var(--gold-light);
+    box-shadow: inset 3px 0 0 var(--gold);
+  }
+  .nav-item .icon {
+    width: 20px; height: 20px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    opacity: 0.9;
+  }
+  .nav-item svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+  .sidebar-foot {
+    padding: 14px 18px 18px;
+    border-top: 1px solid rgba(201,155,46,0.22);
+    font-size: 11px;
+    color: rgba(243,210,100,0.6);
+    line-height: 1.6;
+  }
+
+  /* ---------- Main ---------- */
+  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .topbar {
+    background: var(--cream-2);
+    border-bottom: 1px solid var(--line);
+    padding: 14px 28px;
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: var(--shadow-sm);
+  }
+  .topbar h2 {
+    font-size: 17px; font-weight: 700; color: var(--ink);
+    letter-spacing: -0.2px;
+  }
+  .topbar .sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .topbar-actions { display: flex; gap: 8px; align-items: center; }
+  .content { padding: 24px 28px 40px; flex: 1; }
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; animation: fadeIn 0.22s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ---------- Cards ---------- */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .card {
+    background: var(--white);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px 16px 14px;
+    box-shadow: var(--shadow-sm);
+    position: relative;
+    overflow: hidden;
+    transition: box-shadow 0.2s, transform 0.2s;
+  }
+  .card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+  .card::before {
+    content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 3px;
+    background: var(--maroon-2);
+  }
+  .card.gold::before { background: var(--gold); }
+  .card.green::before { background: var(--green); }
+  .card.maroon::before { background: var(--maroon-light); }
+  .card .c-label {
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.6px; color: var(--muted);
+  }
+  .card .c-value {
+    font-size: 24px; font-weight: 800; color: var(--ink);
+    margin-top: 6px; letter-spacing: -0.5px;
+  }
+  .card.gold .c-value { color: #8A6A14; }
+  .card.green .c-value { color: var(--green); }
+  .card.maroon .c-value { color: var(--maroon-light); }
+  .card .c-sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+  /* ---------- Panel ---------- */
+  .panel {
+    background: var(--white);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 18px;
+  }
+  .panel-head {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line-2);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .panel-head h3 {
+    font-size: 13.5px; font-weight: 700; color: var(--ink);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .panel-body { padding: 18px; }
+  .panel-body.tight { padding: 14px 18px; }
+
+  /* ---------- Table ---------- */
+  .table-wrap { overflow-x: auto; border-radius: var(--radius-sm); }
+  table {
+    width: 100%; border-collapse: collapse;
+    font-size: 13px;
+  }
+  th {
+    text-align: left;
+    padding: 10px 12px;
+    background: var(--cream);
+    color: var(--ink-2);
+    font-weight: 700; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    border-bottom: 2px solid var(--line);
+    white-space: nowrap;
+    position: sticky; top: 0;
+  }
+  td {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--line-2);
+    color: var(--ink);
+  }
+  tr:last-child td { border-bottom: none; }
+  tbody tr { transition: background 0.12s; }
+  tbody tr:hover { background: var(--gold-soft); }
+  .empty-row td { text-align: center; color: var(--muted); padding: 28px; }
+  .badge {
+    display: inline-block;
+    padding: 2px 9px; border-radius: 20px;
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.4px;
+    text-transform: uppercase;
+  }
+  .badge.sale { background: var(--green-bg); color: var(--green); }
+  .badge.phys { background: #FBE9E4; color: var(--maroon-2); }
+  .row-link {
+    color: var(--maroon-2); cursor: pointer; font-weight: 600;
+    font-size: 12px; text-decoration: none;
+  }
+  .row-link:hover { text-decoration: underline; }
+  .row-link.del { color: var(--red); }
+
+  /* ---------- Forms ---------- */
+  .grid { display: grid; gap: 14px; }
+  .grid-2 { grid-template-columns: 1fr 1fr; }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 640px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+  .field { margin-bottom: 0; }
+  .field label {
+    display: block; font-size: 12px; font-weight: 700;
+    color: var(--ink-2); margin-bottom: 5px;
+    text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  .inp, select {
+    width: 100%; padding: 9px 12px;
+    border: 1.5px solid var(--line); border-radius: var(--radius-sm);
+    font-size: 14px; color: var(--ink); background: var(--white);
+    transition: border-color 0.15s, box-shadow 0.15s;
+    font-family: inherit;
+  }
+  .inp:focus, select:focus {
+    outline: none; border-color: var(--maroon-2);
+    box-shadow: 0 0 0 3px rgba(196,68,4,0.1);
+  }
+  .inp::placeholder { color: #C4B8AC; }
+  .end-display {
+    padding: 9px 12px; background: var(--gold-pale);
+    border: 1.5px solid var(--gold-light); border-radius: var(--radius-sm);
+    font-size: 17px; font-weight: 800; color: var(--maroon);
+    text-align: center; letter-spacing: 1px;
+  }
+  .checkbox-row {
+    display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2);
+  }
+  .checkbox-row input { width: 16px; height: 16px; accent-color: var(--maroon-2); }
+
+  /* ---------- Buttons ---------- */
+  .btn {
+    padding: 10px 20px;
+    border: none; border-radius: var(--radius-sm);
+    font-size: 14px; font-weight: 700;
+    cursor: pointer; transition: all 0.18s;
+    display: inline-flex; align-items: center; gap: 7px;
+    font-family: inherit;
+  }
+  .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .btn-primary {
+    background: linear-gradient(180deg, var(--maroon-2), var(--maroon));
+    color: var(--gold-light);
+    box-shadow: var(--shadow-sm);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: linear-gradient(180deg, var(--maroon-light), var(--maroon-2));
+    box-shadow: var(--shadow-md);
+  }
+  .btn-danger {
+    background: linear-gradient(180deg, #C73E1D, #A22810);
+    color: white; box-shadow: var(--shadow-sm);
+  }
+  .btn-danger:hover:not(:disabled) { background: linear-gradient(180deg, #D8492A, #B53215); }
+  .btn-ghost {
+    background: var(--white); color: var(--maroon-2);
+    border: 1.5px solid var(--line);
+  }
+  .btn-ghost:hover:not(:disabled) { border-color: var(--maroon-2); background: var(--cream); }
+  .btn-sm { padding: 7px 14px; font-size: 12.5px; }
+
+  /* ---------- Status / alerts ---------- */
+  .alert {
+    padding: 11px 15px; border-radius: var(--radius-sm);
+    font-size: 13px; font-weight: 600;
+    margin: 12px 0; display: none; align-items: center; gap: 8px;
+  }
+  .alert.show { display: flex; }
+  .alert.ok { background: var(--green-bg); color: var(--green); border: 1px solid #BFE4CC; }
+  .alert.err { background: var(--red-bg); color: var(--red); border: 1px solid #F0CFC6; }
+  .alert.info { background: #EEF4FB; color: #14507A; border: 1px solid #CFE0F0; }
+
+  /* ---------- Split layout ---------- */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  @media (max-width: 880px) { .split { grid-template-columns: 1fr; } }
+
+  /* ---------- Preview ---------- */
+  .preview-box {
+    background: var(--cream-2);
+    border: 1.5px dashed var(--line);
+    border-radius: var(--radius);
+    padding: 24px; text-align: center; color: var(--muted);
+    min-height: 340px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    transition: border-color 0.2s;
+  }
+  .preview-box.loading { border-color: var(--gold); }
+  .preview-box img {
+    max-width: 100%; max-height: 600px; height: auto;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-md);
+  }
+
+  /* ---------- Search ---------- */
+  .search-bar {
+    display: flex; gap: 10px; margin-bottom: 14px; align-items: center;
+  }
+  .search-bar .inp { flex: 1; }
+
+  /* ---------- Progress ---------- */
+  .progress {
+    width: 100%; height: 8px;
+    background: var(--line-2); border-radius: 10px;
+    overflow: hidden; margin: 12px 0;
+  }
+  .progress-bar {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--maroon-2), var(--maroon-light));
+    border-radius: 10px;
+    transition: width 0.3s ease;
+  }
+
+  /* ---------- Summary banner ---------- */
+  .summary-bar {
+    background: linear-gradient(135deg, var(--gold-pale), var(--cream-2));
+    border: 1px solid var(--gold-light);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    color: var(--maroon);
+    font-weight: 700; font-size: 13px;
+    margin-bottom: 16px;
+    display: flex; flex-wrap: wrap; gap: 6px 24px;
+  }
+  .summary-bar span { white-space: nowrap; }
+  .summary-bar .sep { color: var(--gold); }
+
+  /* ---------- Modal ---------- */
+  .modal-bg {
+    display: none; position: fixed; inset: 0;
+    background: rgba(26,22,20,0.65);
+    z-index: 200; justify-content: center; align-items: center;
+    backdrop-filter: blur(3px);
+  }
+  .modal-bg.show { display: flex; animation: fadeIn 0.15s; }
+  .modal {
+    background: var(--cream-2);
+    border-radius: 14px;
+    padding: 22px;
+    max-width: 92%; max-height: 92%;
+    overflow: auto; text-align: center;
+    box-shadow: var(--shadow-lg);
+    position: relative;
+  }
+  .modal img { max-width: 100%; height: auto; border-radius: 8px; }
+  .modal .close-x {
+    position: absolute; top: 10px; right: 14px;
+    background: var(--white); border: 1px solid var(--line);
+    width: 32px; height: 32px; border-radius: 50%;
+    cursor: pointer; font-size: 16px; color: var(--ink-2);
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s;
+  }
+  .modal .close-x:hover { background: var(--red-bg); color: var(--red); }
+
+  /* ---------- Loading spinner ---------- */
+  .spin {
+    width: 22px; height: 22px;
+    border: 2.5px solid var(--line); border-top-color: var(--maroon-2);
+    border-radius: 50%; animation: spin 0.7s linear infinite;
+    display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---------- Responsive sidebar toggle ---------- */
+  .menu-toggle {
+    display: none; background: var(--white); border: 1px solid var(--line);
+    border-radius: var(--radius-xs); padding: 7px 11px;
+    cursor: pointer; font-size: 16px; color: var(--ink);
+  }
+  @media (max-width: 860px) {
+    .sidebar {
+      position: fixed; left: -260px; top: 0; height: 100vh;
+      transition: left 0.25s ease; z-index: 150;
+    }
+    .sidebar.open { left: 0; }
+    .menu-toggle { display: inline-block; }
+    .content { padding: 18px 16px 36px; }
+    .topbar { padding: 12px 16px; }
+  }
+  .overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+    z-index: 140;
+  }
+  .overlay.show { display: block; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="logo">ज</div>
+      <h1>Jai Bhadra Foundation</h1>
+      <div class="sub">Lucky Draw Manager</div>
+    </div>
+    <nav class="nav">
+      <button class="nav-item active" data-tab="dashboard">
+        <span class="icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
+        Dashboard
+      </button>
+      <button class="nav-item" data-tab="newsale">
+        <span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg></span>
+        New Sale
+      </button>
+      <button class="nav-item" data-tab="physical">
+        <span class="icon"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h10M7 14h6"/></svg></span>
+        Physical Sets
+      </button>
+      <button class="nav-item" data-tab="sales">
+        <span class="icon"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg></span>
+        All Sales
+      </button>
+      <button class="nav-item" data-tab="manage">
+        <span class="icon"><svg viewBox="0 0 24 24"><path d="M12 4v16M8 8l4-4 4 4M8 16l4 4 4-4"/></svg></span>
+        Manage
+      </button>
+      <button class="nav-item" data-tab="gaps">
+        <span class="icon"><svg viewBox="0 0 24 24"><path d="M4 12h4l2-7 4 14 2-7h4"/></svg></span>
+        Gaps
+      </button>
+    </nav>
+    <div class="sidebar-foot" id="sidebar-foot">
+      Draw: <span id="sf-draw">—</span><br>
+      Max coupons: <span id="sf-max">5000</span><br>
+      <span id="sf-site">jaibhadra.org</span>
+    </div>
+  </aside>
+  <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="menu-toggle" onclick="openSidebar()">&#9776;</button>
+        <div>
+          <h2 id="page-title">Dashboard</h2>
+          <div class="sub" id="page-sub">Overview of sales and coupons</div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn btn-ghost btn-sm" onclick="loadState()">⟳ Refresh</button>
+      </div>
+    </header>
+
+    <div class="content">
+      <!-- DASHBOARD -->
+      <section id="tab-dashboard" class="tab-pane active">
+        <div class="cards" id="dash-cards"></div>
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Recent Sales</h3>
+            <button class="btn btn-ghost btn-sm" onclick="loadState()">Refresh</button>
+          </div>
+          <div class="table-wrap tight">
+            <table id="dash-table">
+              <thead><tr><th>S.No</th><th>Name</th><th>Phone</th><th>Start</th><th>End</th><th>Qty</th><th>Date</th><th>Type</th><th>Donation</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h3>Generate Sample Coupon</h3></div>
+          <div class="panel-body">
+            <div class="alert info show" style="margin-bottom:14px;">
+              Creates a preview coupon in the browser — nothing is saved to disk or the database.
+            </div>
+            <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+              <div class="field" style="max-width:160px;">
+                <label>Coupon No</label>
+                <input type="number" class="inp" id="sm-num" value="0" min="0">
+              </div>
+              <button class="btn btn-primary" id="sm-btn" onclick="loadSample()" style="padding:9px 22px;">
+                Generate Sample Coupon
+              </button>
+            </div>
+            <div id="sm-status" class="alert"></div>
+            <div class="preview-box" id="sm-preview" style="margin-top:14px;min-height:200px;">
+              Enter a number and click the button to preview a sample coupon
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- NEW SALE -->
+      <section id="tab-newsale" class="tab-pane">
+        <div class="split">
+          <div>
+            <div class="panel">
+              <div class="panel-head"><h3>Buyer Details</h3></div>
+              <div class="panel-body">
+                <div class="field" style="margin-bottom:14px;">
+                  <label>Name</label>
+                  <input class="inp" id="ns-name" placeholder="Buyer name">
+                </div>
+                <div class="grid grid-2">
+                  <div class="field" style="margin-bottom:14px;">
+                    <label>Phone</label>
+                    <input class="inp" id="ns-phone" placeholder="Phone number">
+                  </div>
+                  <div class="field" style="margin-bottom:14px;">
+                    <label>Address</label>
+                    <input class="inp" id="ns-addr" placeholder="Address">
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><h3>Coupon Numbers</h3></div>
+              <div class="panel-body">
+                <div class="grid grid-2" style="margin-bottom:14px;">
+                  <div class="field">
+                    <label>Start No</label>
+                    <input type="number" class="inp" id="ns-start" value="1" min="1">
+                  </div>
+                  <div class="field">
+                    <label>Quantity</label>
+                    <input type="number" class="inp" id="ns-qty" value="1" min="1">
+                  </div>
+                </div>
+                <div class="field" style="margin-bottom:16px;">
+                  <label>End No</label>
+                  <div class="end-display" id="ns-end">0001</div>
+                </div>
+                <div id="ns-status" class="alert"></div>
+                <button class="btn btn-primary" id="ns-sell-btn" onclick="doSale()" style="width:100%;justify-content:center;padding:13px;">
+                  Generate &amp; Record Sale
+                </button>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="panel" style="height:fit-content;">
+              <div class="panel-head"><h3>Live Preview</h3></div>
+              <div class="panel-body">
+                <div class="preview-box" id="ns-preview">Enter details to see a preview</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PHYSICAL SETS -->
+      <section id="tab-physical" class="tab-pane">
+        <div class="alert info show" style="margin-bottom:18px;">
+          Generate coupon strips with no buyer details. Numbers are locked for physical sale. QR shows only the coupon number(s).
+        </div>
+        <div class="panel" style="max-width:540px;">
+          <div class="panel-head"><h3>Generate Physical Sets</h3></div>
+          <div class="panel-body">
+            <div class="field" style="margin-bottom:14px;">
+              <label>Set size</label>
+              <select id="ph-size">
+                <option value="10">Set of 10 — ₹1000</option>
+                <option value="5">Set of 5 — ₹500</option>
+                <option value="1">Set of 1 — ₹100</option>
+              </select>
+            </div>
+            <div class="grid grid-2" style="margin-bottom:14px;">
+              <div class="field">
+                <label>Start No</label>
+                <input type="number" class="inp" id="ph-start" value="1" min="1">
+              </div>
+              <div class="field">
+                <label>Number of sets</label>
+                <input type="number" class="inp" id="ph-sets" value="1" min="1">
+              </div>
+            </div>
+            <div class="summary-bar" id="ph-plan"></div>
+            <div class="progress"><div class="progress-bar" id="ph-progress"></div></div>
+            <div id="ph-status" class="alert"></div>
+            <button class="btn btn-primary" id="ph-gen-btn" onclick="doPhysical()" style="width:100%;justify-content:center;padding:13px;">
+              Generate Physical Sets
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- SALES -->
+      <section id="tab-sales" class="tab-pane">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>All Sales</h3>
+            <button class="btn btn-ghost btn-sm" onclick="loadState()">⟳ Refresh</button>
+          </div>
+          <div class="panel-body tight">
+            <div class="search-bar">
+              <input class="inp" id="sl-search" placeholder="Filter by name, phone, coupon number, date..." oninput="renderSales()">
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table id="sl-table">
+              <thead><tr><th>S.No</th><th>Name</th><th>Phone</th><th>Address</th><th>Start</th><th>End</th><th>Qty</th><th>Date</th><th>Type</th><th>Donation</th><th>Image</th><th></th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- MANAGE -->
+      <section id="tab-manage" class="tab-pane">
+        <div class="grid grid-3" style="max-width:900px;">
+          <div class="panel">
+            <div class="panel-head"><h3>Delete Single Sale</h3></div>
+            <div class="panel-body">
+              <div class="field" style="margin-bottom:12px;">
+                <label>S.No</label>
+                <input type="number" class="inp" id="mg-sno" value="1" min="1">
+              </div>
+              <label class="checkbox-row" style="margin-bottom:14px;">
+                <input type="checkbox" id="mg-png" checked> Also delete PNG file
+              </label>
+              <button class="btn btn-danger" style="width:100%;justify-content:center;" onclick="deleteSaleBySno()">Delete Sale</button>
+              <div id="mg-status1" class="alert"></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h3>Delete Physical by Range</h3></div>
+            <div class="panel-body">
+              <div class="grid grid-2" style="margin-bottom:12px;">
+                <div class="field"><label>Start</label><input type="number" class="inp" id="mg-rs" value="1" min="1"></div>
+                <div class="field"><label>End</label><input type="number" class="inp" id="mg-re" value="100" min="1"></div>
+              </div>
+              <label class="checkbox-row" style="margin-bottom:14px;">
+                <input type="checkbox" id="mg-rpng" checked> Also delete PNG files
+              </label>
+              <button class="btn btn-danger" style="width:100%;justify-content:center;" onclick="deletePhysicalRange()">Delete in Range</button>
+              <div id="mg-status2" class="alert"></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h3>Bulk Deletes</h3></div>
+            <div class="panel-body">
+              <button class="btn btn-danger" style="width:100%;justify-content:center;margin-bottom:10px;" onclick="deleteAllPhysical()">Delete ALL Physical</button>
+              <button class="btn btn-danger" style="width:100%;justify-content:center;" onclick="deleteAllSales()">Delete ALL Sales</button>
+              <div id="mg-status3" class="alert"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- GAPS -->
+      <section id="tab-gaps" class="tab-pane">
+        <div class="summary-bar" id="gap-summary">Loading…</div>
+        <div class="panel">
+          <div class="panel-head"><h3>Gap Ranges</h3></div>
+          <div class="table-wrap">
+            <table id="gap-table">
+              <thead><tr><th>Gap Range</th><th>Count</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- Image modal -->
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <div class="close-x" onclick="closeModal()">&times;</div>
+    <img id="modal-img" src="" alt="Coupon">
+  </div>
+</div>
+
+<script>
+let STATE = { sales: [], summary: {}, gap_ranges: [], max_coupon: 5000, draw_line: "", website: "" };
+let previewTimer = null;
+
+const PAGE_META = {
+  dashboard: { title: "Dashboard", sub: "Overview of sales and coupons" },
+  newsale:   { title: "New Sale", sub: "Record a buyer and generate coupon(s)" },
+  physical:  { title: "Physical Sets", sub: "Generate coupon strips without buyer details" },
+  sales:     { title: "All Sales", sub: "Search, view and manage every sale" },
+  manage:    { title: "Manage", sub: "Delete sales, physical sets and bulk actions" },
+  gaps:      { title: "Coupon Gaps", sub: "Find unassigned numbers in the sold span" },
+};
+
+// ---- Sidebar / tabs ----
+document.querySelectorAll(".nav-item").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".nav-item").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".tab-pane").forEach(c => c.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+    const m = PAGE_META[btn.dataset.tab];
+    document.getElementById("page-title").textContent = m.title;
+    document.getElementById("page-sub").textContent = m.sub;
+    if (["dashboard","sales","gaps"].includes(btn.dataset.tab)) loadState();
+    closeSidebar();
+  });
+});
+function openSidebar() { document.getElementById("sidebar").classList.add("open"); document.getElementById("overlay").classList.add("show"); }
+function closeSidebar() { document.getElementById("sidebar").classList.remove("open"); document.getElementById("overlay").classList.remove("show"); }
+function closeModal() { document.getElementById("modal").classList.remove("show"); }
+
+// ---- API ----
+async function api(url, opts) {
+  try {
+    const r = await fetch(url, opts);
+    const j = await r.json();
+    if (!j.success) throw new Error(j.error || "Unknown error");
+    return j;
+  } catch (e) {
+    showStatus(null, e.message, true);
+    throw e;
+  }
+}
+function showStatus(id, msg, isErr) {
+  const el = id ? document.getElementById(id) : null;
+  if (!el) { alert(msg); return; }
+  el.textContent = msg;
+  el.className = "alert show " + (isErr ? "err" : "ok");
+  if (!isErr) setTimeout(() => { el.className = "alert"; }, 4500);
+}
+function pad(n) { return (n || 0).toString().padStart(4, "0"); }
+function esc(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+// ---- Load state ----
+async function loadState() {
+  try {
+    const j = await api("/api/state");
+    STATE = j;
+    renderDashboard();
+    renderSales();
+    renderGaps();
+    document.getElementById("sf-draw").textContent = STATE.draw_line;
+    document.getElementById("sf-max").textContent = STATE.max_coupon;
+    document.getElementById("sf-site").textContent = STATE.website;
+  } catch (e) {}
+}
+
+function renderDashboard() {
+  const s = STATE.summary || {};
+  const cards = [
+    { label: "Total Sold", value: s.total_sold||0, sub: "coupons", cls: "" },
+    { label: "Revenue", value: "₹" + (s.revenue||0).toLocaleString(), sub: "total donations", cls: "green" },
+    { label: "Remaining", value: s.remaining||0, sub: "of " + STATE.max_coupon, cls: "gold" },
+    { label: "Gaps", value: s.gaps||0, sub: "unassigned", cls: "maroon" },
+    { label: "Sale Rows", value: s.sale_rows||0, sub: "buyer sales", cls: "" },
+    { label: "Physical Rows", value: s.phys_rows||0, sub: "physical sets", cls: "maroon" },
+    { label: "Last Coupon", value: s.last_coupon||"-", sub: "most recent", cls: "gold" },
+  ];
+  document.getElementById("dash-cards").innerHTML = cards.map(c =>
+    `<div class="card ${c.cls}"><div class="c-label">${c.label}</div><div class="c-value">${c.value}</div><div class="c-sub">${c.sub}</div></div>`
+  ).join("");
+  const recent = (STATE.sales||[]).slice(-6).reverse();
+  const tb = document.querySelector("#dash-table tbody");
+  tb.innerHTML = recent.map(r => {
+    const tcls = r.type === "PHYSICAL" ? "phys" : "sale";
+    const tlabel = r.type === "PHYSICAL" ? "PHYSICAL" : "SALE";
+    const amt = (r.amount != null) ? "₹" + Number(r.amount).toLocaleString() : "—";
+    return `<tr>
+      <td><strong>${r.sno||""}</strong></td>
+      <td>${esc(r.name) || '<span style="color:#999;">— Physical —</span>'}</td>
+      <td>${esc(r.phone)||"—"}</td>
+      <td>${pad(r.start)}</td><td>${pad(r.end)}</td><td>${r.qty||""}</td>
+      <td style="white-space:nowrap;">${esc(r.date)||"—"}</td>
+      <td><span class="badge ${tcls}">${tlabel}</span></td>
+      <td style="font-weight:700;color:var(--green);">${amt}</td>
+    </tr>`;
+  }).join("") || `<tr class="empty-row"><td colspan="9">No sales recorded yet</td></tr>`;
+}
+
+// ---- Sales tab ----
+function renderSales() {
+  const q = (document.getElementById("sl-search").value || "").toLowerCase();
+  let rows = (STATE.sales||[]).slice().reverse();
+  if (q) rows = rows.filter(r =>
+    [r.sno,r.name,r.phone,r.address,r.start,r.end,r.qty,r.date,r.type].join(" ").toLowerCase().includes(q));
+  const tb = document.querySelector("#sl-table tbody");
+  tb.innerHTML = rows.map(r => {
+    const numPart = r.start === r.end ? pad(r.start) : `${pad(r.start)}-${pad(r.end)}`;
+    const name = r.name ? r.name.replace(/[<>:"/\\|?*]/g,"_").replace(/ /g,"_") : "";
+    const fn = name ? `${name}_${numPart}.png` : `coupon_${numPart}.png`;
+    const tcls = r.type === "PHYSICAL" ? "phys" : "sale";
+    const tlabel = r.type === "PHYSICAL" ? "PHYSICAL" : "SALE";
+    const amt = (r.amount != null) ? "₹" + Number(r.amount).toLocaleString() : "—";
+    return `<tr>
+      <td><strong>${r.sno||""}</strong></td>
+      <td>${esc(r.name) || '<span style="color:#999;">— Physical —</span>'}</td>
+      <td>${esc(r.phone)||"—"}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;">${esc(r.address)||"—"}</td>
+      <td>${pad(r.start)}</td><td>${pad(r.end)}</td><td>${r.qty||""}</td>
+      <td style="white-space:nowrap;">${esc(r.date)||"—"}</td>
+      <td><span class="badge ${tcls}">${tlabel}</span></td>
+      <td style="font-weight:700;color:var(--green);">${amt}</td>
+      <td><span class="row-link" onclick="viewImage('${encodeURIComponent(fn)}')">View</span></td>
+      <td><span class="row-link del" onclick="deleteSale(${r.sno})">Delete</span></td>
+    </tr>`;
+  }).join("") || `<tr class="empty-row"><td colspan="12">No sales found</td></tr>`;
+}
+
+function viewImage(filename) {
+  document.getElementById("modal-img").src = "/api/coupon-image/" + filename;
+  document.getElementById("modal").classList.add("show");
+}
+
+async function deleteSale(sno) {
+  if (!confirm(`Delete sale #${sno}?\nCoupon numbers will be freed.`)) return;
+  const delPng = confirm("Also delete the coupon PNG file?") ? "1" : "0";
+  try {
+    await api(`/api/sale/${sno}?png=${delPng}`, { method: "DELETE" });
+    await loadState();
+    alert("Sale #" + sno + " deleted.");
+  } catch (e) {}
+}
+
+// ---- Gaps tab ----
+function renderGaps() {
+  const s = STATE.summary || {};
+  const sb = document.getElementById("gap-summary");
+  sb.innerHTML =
+    `<span>Lowest: <strong>${s.low||"—"}</strong></span><span class="sep">|</span>` +
+    `<span>Highest: <strong>${s.high||"—"}</strong></span><span class="sep">|</span>` +
+    `<span>Span: <strong>${s.span||0}</strong></span><span class="sep">|</span>` +
+    `<span>Assigned: <strong>${s.assigned||0}</strong></span><span class="sep">|</span>` +
+    `<span>Gaps: <strong style="color:var(--red);">${s.gaps||0}</strong></span>`;
+  const gaps = STATE.gap_ranges || [];
+  const tb = document.querySelector("#gap-table tbody");
+  if (!gaps.length) {
+    tb.innerHTML = `<tr class="empty-row"><td colspan="2">No gaps — every number from ${s.low} to ${s.high} is assigned.</td></tr>`;
+  } else {
+    tb.innerHTML = gaps.map(g => {
+      const label = g.start === g.end ? pad(g.start) : `${pad(g.start)} — ${pad(g.end)}`;
+      return `<tr><td style="font-weight:600;">${label}</td><td><span class="badge phys">${g.count}</span></td></tr>`;
+    }).join("");
+  }
+}
+
+// ---- New Sale ----
+function updateEndNo() {
+  const s = parseInt(document.getElementById("ns-start").value) || 1;
+  const q = parseInt(document.getElementById("ns-qty").value) || 1;
+  document.getElementById("ns-end").textContent = pad(s + q - 1);
+  schedulePreview();
+}
+document.getElementById("ns-start").addEventListener("input", updateEndNo);
+document.getElementById("ns-qty").addEventListener("input", updateEndNo);
+["ns-name","ns-phone","ns-addr"].forEach(id =>
+  document.getElementById(id).addEventListener("input", schedulePreview));
+
+function schedulePreview() {
+  if (previewTimer) clearTimeout(previewTimer);
+  previewTimer = setTimeout(loadPreview, 450);
+}
+async function loadPreview() {
+  const start = parseInt(document.getElementById("ns-start").value) || 1;
+  const qty = parseInt(document.getElementById("ns-qty").value) || 1;
+  const end = start + qty - 1;
+  const box = document.getElementById("ns-preview");
+  if (end > STATE.max_coupon) {
+    box.innerHTML = `<span style="color:var(--red);font-weight:600;">End ${pad(end)} exceeds max ${STATE.max_coupon}</span>`;
+    return;
+  }
+  const name = document.getElementById("ns-name").value;
+  const phone = document.getElementById("ns-phone").value;
+  const addr = document.getElementById("ns-addr").value;
+  box.className = "preview-box loading";
+  box.innerHTML = '<div class="spin"></div><span style="margin-left:10px;">Rendering preview…</span>';
+  try {
+    const params = new URLSearchParams({ start, end, name, phone, address: addr });
+    const j = await api("/api/preview?" + params.toString());
+    box.className = "preview-box";
+    box.innerHTML = `<img src="${j.image}" alt="Preview">`;
+  } catch (e) {
+    box.className = "preview-box";
+    box.innerHTML = "Preview unavailable";
+  }
+}
+async function doSale() {
+  const name = document.getElementById("ns-name").value.trim();
+  const phone = document.getElementById("ns-phone").value.trim();
+  const addr = document.getElementById("ns-addr").value.trim();
+  const start = parseInt(document.getElementById("ns-start").value);
+  const qty = parseInt(document.getElementById("ns-qty").value);
+  if (!name) { showStatus("ns-status", "Buyer name is required.", true); return; }
+  const btn = document.getElementById("ns-sell-btn");
+  btn.disabled = true;
+  showStatus("ns-status", "Processing…", false);
+  try {
+    const j = await api("/api/sale", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, phone, address: addr, start, qty })
+    });
+    showStatus("ns-status", j.message, false);
+    await loadState();
+  } catch (e) {
+    showStatus("ns-status", e.message, true);
+  } finally { btn.disabled = false; }
+}
+
+// ---- Physical ----
+const SET_PRICES = {10: 1000, 5: 500, 1: 100};
+function priceForSetSize(n) { return SET_PRICES[n] || (n * 100); }
+
+function updatePhysicalPlan() {
+  const size = parseInt(document.getElementById("ph-size").value);
+  const start = parseInt(document.getElementById("ph-start").value) || 1;
+  const num = parseInt(document.getElementById("ph-sets").value) || 1;
+  const total = size * num;
+  const end = start + total - 1;
+  const setPrice = priceForSetSize(size);
+  const totalCost = num * setPrice;
+  const warn = end > STATE.max_coupon ? ` <span style="color:var(--red);">(exceeds max ${STATE.max_coupon}!)</span>` : "";
+  document.getElementById("ph-plan").innerHTML =
+    `<span>Plan: ${num} set(s) × ${size}</span><span class="sep">|</span><span>${total} coupons</span><span class="sep">|</span><span>${pad(start)} – ${pad(end)}</span><span class="sep">|</span><span>₹${setPrice} × ${num} = ₹${totalCost.toLocaleString()}</span>${warn}`;
+}
+document.getElementById("ph-size").addEventListener("change", updatePhysicalPlan);
+document.getElementById("ph-start").addEventListener("input", updatePhysicalPlan);
+document.getElementById("ph-sets").addEventListener("input", updatePhysicalPlan);
+
+async function doPhysical() {
+  const size = parseInt(document.getElementById("ph-size").value);
+  const start = parseInt(document.getElementById("ph-start").value);
+  const num = parseInt(document.getElementById("ph-sets").value);
+  const end = start + num * size - 1;
+  if (end > STATE.max_coupon) { showStatus("ph-status", `Would end at ${pad(end)}, exceeds ${STATE.max_coupon}.`, true); return; }
+  if (!confirm(`Generate ${num} set(s) of ${size} = ${size*num} coupons (${pad(start)}–${pad(end)})?`)) return;
+  const btn = document.getElementById("ph-gen-btn");
+  btn.disabled = true;
+  const bar = document.getElementById("ph-progress");
+  bar.style.width = "40%";
+  showStatus("ph-status", "Generating…", false);
+  try {
+    const j = await api("/api/physical", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ set_size: size, start, num_sets: num })
+    });
+    bar.style.width = "100%";
+    showStatus("ph-status", j.message, false);
+    await loadState();
+    setTimeout(() => { bar.style.width = "0%"; }, 2500);
+  } catch (e) {
+    bar.style.width = "0%";
+    showStatus("ph-status", e.message, true);
+  } finally { btn.disabled = false; }
+}
+
+// ---- Manage ----
+async function deleteSaleBySno() {
+  const sno = parseInt(document.getElementById("mg-sno").value);
+  const delPng = document.getElementById("mg-png").checked ? "1" : "0";
+  if (!confirm(`Delete sale #${sno}?`)) return;
+  try {
+    await api(`/api/sale/${sno}?png=${delPng}`, { method: "DELETE" });
+    showStatus("mg-status1", `Sale #${sno} deleted.`, false);
+    await loadState();
+  } catch (e) { showStatus("mg-status1", e.message, true); }
+}
+async function deletePhysicalRange() {
+  const s = parseInt(document.getElementById("mg-rs").value);
+  const e = parseInt(document.getElementById("mg-re").value);
+  if (e < s) { showStatus("mg-status2", "End must be ≥ start.", true); return; }
+  const delPngs = document.getElementById("mg-rpng").checked;
+  if (!confirm(`Delete all physical sets within ${pad(s)}–${pad(e)}?\nNormal sales are kept.`)) return;
+  try {
+    const j = await api("/api/delete/physical/range", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ start: s, end: e, delete_pngs: delPngs })
+    });
+    showStatus("mg-status2", j.message, false);
+    await loadState();
+  } catch (e) { showStatus("mg-status2", e.message, true); }
+}
+async function deleteAllPhysical() {
+  if (!confirm("Delete ALL physical sets? Normal sales are kept. This cannot be undone.")) return;
+  try {
+    const j = await api("/api/delete/physical/all", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ delete_pngs: true })
+    });
+    showStatus("mg-status3", j.message, false);
+    await loadState();
+  } catch (e) { showStatus("mg-status3", e.message, true); }
+}
+async function deleteAllSales() {
+  if (!confirm("Delete ALL sales (physical + normal)? This CANNOT be undone.")) return;
+  const delPngs = confirm("Also delete all generated PNG files?");
+  try {
+    const j = await api("/api/delete/all", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ delete_pngs: delPngs })
+    });
+    showStatus("mg-status3", j.message, false);
+    await loadState();
+  } catch (e) { showStatus("mg-status3", e.message, true); }
+}
+
+// ---- Sample Coupon ----
+async function loadSample() {
+  const num = parseInt(document.getElementById("sm-num").value) || 0;
+  const box = document.getElementById("sm-preview");
+  const btn = document.getElementById("sm-btn");
+  btn.disabled = true;
+  box.className = "preview-box loading";
+  box.innerHTML = '<div class="spin"></div><span style="margin-left:10px;">Rendering sample coupon…</span>';
+  try {
+    const j = await api("/api/sample?num=" + num);
+    box.className = "preview-box";
+    box.innerHTML = `<img src="${j.image}" alt="Sample Coupon ${pad(num)}" style="cursor:pointer;" onclick="openSampleModal('${j.image}')">`;
+    showStatus("sm-status", `Sample coupon ${pad(num)} generated (₹100). Not saved to database.`, false);
+  } catch (e) {
+    box.className = "preview-box";
+    box.innerHTML = "Preview unavailable";
+    showStatus("sm-status", e.message, true);
+  } finally { btn.disabled = false; }
+}
+function openSampleModal(src) {
+  document.getElementById("modal-img").src = src;
+  document.getElementById("modal").classList.add("show");
+}
+
+// ---- Init ----
+loadState();
+updatePhysicalPlan();
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+</script>
+</body>
+</html>
