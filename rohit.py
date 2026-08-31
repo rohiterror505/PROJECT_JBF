@@ -1997,6 +1997,116 @@ def _xlsx_delete_sale(sno, delete_png=False):
     return True
 
 
+def _xlsx_update_sale(sno, name, phone, address, regen_png=True):
+    """Update the buyer details (Name, Phone, Address) of an existing sale
+    row identified by S.No.  Coupon numbers, qty, amount and type are NOT
+    changed — only the buyer fields.
+
+    If regen_png is True (and not in Postgres mode), the coupon PNG is
+    re-rendered with the new buyer info so its QR code stays correct.  The
+    old PNG file (which may have been named after the *old* buyer) is
+    removed first, then create_coupon() writes the new file.
+
+    Returns True if a row was updated, False if S.No was not found.
+    Raises RuntimeError if the Excel file is locked."""
+    _xlsx_ensure_sales_file()
+    wb = _load_sales_workbook()
+    ws = wb.active
+
+    target_row = None
+    target_start = None
+    target_end = None
+    target_amount = None
+    target_stype = None
+    old_buyer = None
+
+    for row_idx in range(2, ws.max_row + 1):
+        cell_sno = ws.cell(row=row_idx, column=1).value
+        if cell_sno is None:
+            continue
+        try:
+            if int(cell_sno) == int(sno):
+                target_row = row_idx
+                target_start = ws.cell(row=row_idx, column=5).value
+                target_end = ws.cell(row=row_idx, column=6).value
+                target_amount = ws.cell(row=row_idx, column=11).value
+                target_stype = ws.cell(row=row_idx, column=9).value or "SALE"
+                old_buyer = ws.cell(row=row_idx, column=2).value
+                break
+        except (ValueError, TypeError):
+            continue
+
+    if target_row is None:
+        return False
+
+    # Write the new buyer details.  Empty strings are stored as None so the
+    # row stays consistent with how record_sale writes blank fields.
+    ws.cell(row=target_row, column=2).value = (name.strip() if name else None)
+    ws.cell(row=target_row, column=3).value = (phone.strip() if phone else None)
+    ws.cell(row=target_row, column=4).value = (address.strip() if address else None)
+
+    try:
+        wb.save(SALES_FILE)
+    except PermissionError:
+        raise RuntimeError(
+            f"Cannot save '{SALES_FILE.name}'. Please CLOSE it in "
+            f"Microsoft Excel / OneDrive and try again."
+        )
+    finally:
+        wb.close()
+        _invalidate_sales_cache()
+
+    if regen_png:
+        try:
+            start = int(target_start)
+            end = int(target_end)
+        except (TypeError, ValueError):
+            return True
+
+        # Resolve the donation amount to print on the re-rendered coupon.
+        amount = target_amount
+        if amount is None:
+            qty = end - start + 1
+            amount = (price_for_set_size(qty) if target_stype == "PHYSICAL"
+                      else qty * PRICE_PER_COUPON)
+
+        is_range = start != end
+        num_part = f"{start:04d}-{end:04d}" if is_range else f"{start:04d}"
+
+        # Remove the old PNG (named after the old buyer, if any).
+        if old_buyer:
+            invalid = '<>:"/\\|?*'
+            old_safe = "".join("_" if ch in invalid else ch
+                               for ch in str(old_buyer)).strip().replace(" ", "_")
+            old_path = OUTPUT_DIR / f"{old_safe}_{num_part}.png"
+            if old_path.exists():
+                try:
+                    old_path.unlink()
+                except Exception:
+                    pass
+        else:
+            old_path = OUTPUT_DIR / f"coupon_{num_part}.png"
+            # Only delete the no-buyer filename if a buyer is now being set
+            # (otherwise we'd delete the very file we are about to rewrite).
+            if (name and name.strip()) and old_path.exists():
+                try:
+                    old_path.unlink()
+                except Exception:
+                    pass
+
+        # Render the new PNG with the updated buyer details.
+        buyer_val = name.strip() if name else None
+        phone_val = phone.strip() if phone else None
+        addr_val = address.strip() if address else None
+        try:
+            create_coupon(start, end, buyer=buyer_val, phone=phone_val,
+                          address=addr_val, amount=amount)
+        except Exception as exc:
+            print(f"WARNING: Excel row updated but PNG re-render failed: {exc}")
+
+    return True
+
+
 # ============================================================
 # INTERACTIVE SALE
 # ============================================================
@@ -3103,6 +3213,35 @@ def _pg_delete_sale(sno, delete_png=False):
     return True
 
 
+def _pg_update_sale(sno, name, phone, address, regen_png=True):
+    """Update buyer details of a sale row in Postgres.  regen_png is ignored
+    in Postgres mode (coupons are rendered on demand from the DB row, so the
+    latest buyer info is always shown).  Returns True if a row was updated,
+    False if sno was not found."""
+    _pg_ensure()
+    conn = _pg_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM sales WHERE sno = %s", (sno,))
+            if cur.fetchone() is None:
+                conn.rollback()
+                return False
+            cur.execute(
+                "UPDATE sales SET name = %s, phone = %s, address = %s WHERE sno = %s",
+                (name.strip() if name else None,
+                 phone.strip() if phone else None,
+                 address.strip() if address else None,
+                 sno),
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        _pg_release(conn)
+    return True
+
+
 def _pg_delete_all_sales(delete_pngs=False):
     """Delete every sale row."""
     _pg_ensure()
@@ -3373,6 +3512,18 @@ def delete_sale(sno, delete_png=False):
     if _USE_POSTGRES:
         return _pg_delete_sale(sno, delete_png=delete_png)
     return _xlsx_delete_sale(sno, delete_png=delete_png)
+
+
+def update_sale(sno, name, phone, address, regen_png=True):
+    """Update the buyer details (Name, Phone, Address) of an existing sale
+    row without changing its coupon numbers, qty, amount or type.  Works for
+    both SALE and PHYSICAL rows (a PHYSICAL row's buyer fields start blank
+    and can be filled in here).  When regen_png is True (Excel mode only)
+    the coupon PNG is re-rendered with the new buyer info so its QR code
+    stays correct.  Returns True if updated, False if sno not found."""
+    if _USE_POSTGRES:
+        return _pg_update_sale(sno, name, phone, address, regen_png=regen_png)
+    return _xlsx_update_sale(sno, name, phone, address, regen_png=regen_png)
 
 
 def delete_all_sales(delete_pngs=False):

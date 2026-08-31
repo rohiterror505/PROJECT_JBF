@@ -321,15 +321,40 @@ def api_physical():
         return _err(str(exc), 500)
 
 
-@app.route("/api/sale/<int:sno>", methods=["DELETE"])
-def api_delete_sale(sno):
-    del_png = request.args.get("png", "0") in ("1", "true", "yes")
+@app.route("/api/sale/<int:sno>", methods=["DELETE", "PUT"])
+def api_sale_by_sno(sno):
+    """Handle a single sale row by S.No.
+    DELETE -> remove the sale (and optionally its PNG via ?png=1).
+    PUT    -> update the buyer details (Name, Phone, Address) only; coupon
+              numbers, qty, amount and type stay locked.  In Excel mode the
+              coupon PNG is re-rendered with the new info so the QR stays correct.
+    """
+    if request.method == "DELETE":
+        del_png = request.args.get("png", "0") in ("1", "true", "yes")
+        try:
+            ok = rohit.delete_sale(sno, delete_png=del_png)
+            if ok:
+                return _ok({"message": f"Sale #{sno} deleted."})
+            return _err(f"No sale #{sno}.", 404)
+        except RuntimeError as exc:
+            return _err(str(exc), 500)
+
+    # PUT
+    data = request.get_json(force=True)
     try:
-        ok = rohit.delete_sale(sno, delete_png=del_png)
+        name = (data.get("name") or "").strip()
+        phone = (data.get("phone") or "").strip()
+        address = (data.get("address") or "").strip()
+    except (TypeError, ValueError):
+        return _err("Invalid parameters")
+    try:
+        ok = rohit.update_sale(sno, name, phone, address, regen_png=True)
         if ok:
-            return _ok({"message": f"Sale #{sno} deleted."})
+            return _ok({"message": f"Sale #{sno} updated."})
         return _err(f"No sale #{sno}.", 404)
     except RuntimeError as exc:
+        return _err(str(exc), 500)
+    except Exception as exc:
         return _err(str(exc), 500)
 
 

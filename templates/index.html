@@ -394,6 +394,12 @@
   }
   .modal .close-x:hover { background: var(--red-bg); color: var(--red); }
 
+  /* ---------- Sortable table headers ---------- */
+  th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+  th.sortable:hover { color: var(--gold); }
+  th.sortable .sort-arrow { font-size: 11px; margin-left: 4px; color: var(--gold); }
+  th.sortable .sort-arrow.placeholder { color: var(--ink-3); opacity: 0.4; }
+
   /* ---------- Loading spinner ---------- */
   .spin {
     width: 22px; height: 22px;
@@ -636,7 +642,19 @@
           </div>
           <div class="table-wrap">
             <table id="sl-table">
-              <thead><tr><th>S.No</th><th>Name</th><th>Phone</th><th>Address</th><th>Start</th><th>End</th><th>Qty</th><th>Date</th><th>Type</th><th>Donation</th><th>Image</th><th></th></tr></thead>
+              <thead><tr>
+                <th class="sortable" data-key="sno" onclick="setSort('sno')">S.No</th>
+                <th class="sortable" data-key="name" onclick="setSort('name')">Name</th>
+                <th class="sortable" data-key="phone" onclick="setSort('phone')">Phone</th>
+                <th class="sortable" data-key="address" onclick="setSort('address')">Address</th>
+                <th class="sortable" data-key="start" onclick="setSort('start')">Start</th>
+                <th class="sortable" data-key="end" onclick="setSort('end')">End</th>
+                <th class="sortable" data-key="qty" onclick="setSort('qty')">Qty</th>
+                <th class="sortable" data-key="date" onclick="setSort('date')">Date</th>
+                <th class="sortable" data-key="type" onclick="setSort('type')">Type</th>
+                <th class="sortable" data-key="amount" onclick="setSort('amount')">Donation</th>
+                <th>Image</th><th></th>
+              </tr></thead>
               <tbody></tbody>
             </table>
           </div>
@@ -744,6 +762,32 @@
   </div>
 </div>
 
+<!-- Edit sale modal -->
+<div class="modal-bg" id="edit-modal">
+  <div class="modal" style="max-width:460px;text-align:left;">
+    <div class="close-x" onclick="closeEditModal()">&times;</div>
+    <h3 style="margin-top:2px;margin-bottom:18px;color:var(--maroon);">Edit Buyer Details</h3>
+    <input type="hidden" id="ed-sno">
+    <div class="field" style="margin-bottom:14px;">
+      <label>Name</label>
+      <input class="inp" id="ed-name" placeholder="Buyer name">
+    </div>
+    <div class="field" style="margin-bottom:14px;">
+      <label>Phone</label>
+      <input class="inp" id="ed-phone" placeholder="Phone number">
+    </div>
+    <div class="field" style="margin-bottom:18px;">
+      <label>Address</label>
+      <input class="inp" id="ed-addr" placeholder="Address">
+    </div>
+    <div id="ed-status" class="alert" style="margin-bottom:14px;"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="closeEditModal()">Cancel</button>
+      <button class="btn btn-primary" id="ed-save-btn" onclick="saveEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
 <script>
 let STATE = { sales: [], summary: {}, gap_ranges: [], max_coupon: 5000, draw_line: "", website: "" };
 let previewTimer = null;
@@ -846,11 +890,58 @@ function renderDashboard() {
 }
 
 // ---- Sales tab ----
+let salesSort = { key: "sno", dir: "desc" };  // default: newest first (highest S.No)
+const NUMERIC_KEYS = ["sno", "start", "end", "qty", "amount"];
+
+function setSort(key) {
+  if (salesSort.key === key) {
+    salesSort.dir = (salesSort.dir === "asc") ? "desc" : "asc";
+  } else {
+    salesSort.key = key;
+    salesSort.dir = "asc";
+  }
+  renderSales();
+}
+
+function renderSortArrows() {
+  document.querySelectorAll("#sl-table thead th.sortable").forEach(th => {
+    const key = th.dataset.key;
+    let arrow = '<span class="sort-arrow placeholder">↕</span>';
+    if (key === salesSort.key) {
+      arrow = `<span class="sort-arrow">${salesSort.dir === "asc" ? "▲" : "▼"}</span>`;
+    }
+    // Rebuild the header label + arrow without duplicating.
+    const labels = {
+      sno:"S.No", name:"Name", phone:"Phone", address:"Address",
+      start:"Start", end:"End", qty:"Qty", date:"Date", type:"Type", amount:"Donation"
+    };
+    th.innerHTML = labels[key] + arrow;
+  });
+}
+
 function renderSales() {
   const q = (document.getElementById("sl-search").value || "").toLowerCase();
-  let rows = (STATE.sales||[]).slice().reverse();
+  let rows = (STATE.sales||[]).slice();
   if (q) rows = rows.filter(r =>
     [r.sno,r.name,r.phone,r.address,r.start,r.end,r.qty,r.date,r.type].join(" ").toLowerCase().includes(q));
+
+  // Sort by the active sort key/direction.
+  const key = salesSort.key;
+  const dir = (salesSort.dir === "asc") ? 1 : -1;
+  rows.sort((a, b) => {
+    let va = a[key], vb = b[key];
+    if (NUMERIC_KEYS.includes(key)) {
+      va = (va == null || va === "") ? -Infinity : Number(va);
+      vb = (vb == null || vb === "") ? -Infinity : Number(vb);
+      return (va - vb) * dir;
+    }
+    va = (va == null) ? "" : String(va).toLowerCase();
+    vb = (vb == null) ? "" : String(vb).toLowerCase();
+    if (va < vb) return -1 * dir;
+    if (va > vb) return  1 * dir;
+    return 0;
+  });
+
   const tb = document.querySelector("#sl-table tbody");
   tb.innerHTML = rows.map(r => {
     const numPart = r.start === r.end ? pad(r.start) : `${pad(r.start)}-${pad(r.end)}`;
@@ -869,9 +960,13 @@ function renderSales() {
       <td><span class="badge ${tcls}">${tlabel}</span></td>
       <td style="font-weight:700;color:var(--green);">${amt}</td>
       <td><span class="row-link" onclick="viewCouponBySno(${r.sno})">View</span></td>
-      <td><span class="row-link del" onclick="deleteSale(${r.sno})">Delete</span></td>
+      <td style="white-space:nowrap;">
+        <span class="row-link" onclick="editSale(${r.sno})">Edit</span>
+        <span class="row-link del" onclick="deleteSale(${r.sno})">Delete</span>
+      </td>
     </tr>`;
   }).join("") || `<tr class="empty-row"><td colspan="12">No sales found</td></tr>`;
+  renderSortArrows();
 }
 
 function viewImage(filename) {
@@ -881,6 +976,47 @@ function viewImage(filename) {
 function viewCouponBySno(sno) {
   document.getElementById("modal-img").src = "/api/coupon-render/" + sno;
   document.getElementById("modal").classList.add("show");
+}
+
+// ---- Edit sale ----
+function editSale(sno) {
+  const r = (STATE.sales||[]).find(s => Number(s.sno) === Number(sno));
+  if (!r) { alert("Sale #" + sno + " not found."); return; }
+  document.getElementById("ed-sno").value = sno;
+  document.getElementById("ed-name").value = r.name || "";
+  document.getElementById("ed-phone").value = r.phone || "";
+  document.getElementById("ed-addr").value = r.address || "";
+  const st = document.getElementById("ed-status");
+  st.textContent = ""; st.className = "alert";
+  document.getElementById("edit-modal").classList.add("show");
+}
+function closeEditModal() {
+  document.getElementById("edit-modal").classList.remove("show");
+}
+async function saveEdit() {
+  const sno = document.getElementById("ed-sno").value;
+  const name = document.getElementById("ed-name").value.trim();
+  const phone = document.getElementById("ed-phone").value.trim();
+  const address = document.getElementById("ed-addr").value.trim();
+  const btn = document.getElementById("ed-save-btn");
+  const st = document.getElementById("ed-status");
+  btn.disabled = true;
+  st.textContent = "Saving..."; st.className = "alert show";
+  try {
+    await api(`/api/sale/${sno}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, phone, address }),
+    });
+    st.textContent = ""; st.className = "alert";
+    closeEditModal();
+    await loadState();
+    alert("Sale #" + sno + " updated.");
+  } catch (e) {
+    st.textContent = e.message; st.className = "alert show err";
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 async function deleteSale(sno) {

@@ -218,6 +218,28 @@ def card(title, value, color=MAROON, bg=WHITE):
     return f
 
 
+class NumericTableWidgetItem(QTableWidgetItem):
+    """QTableWidgetItem that sorts by its numeric value instead of by the
+    display string.  Used for the S.No / Start / End / Qty / Donation
+    columns in the Sales table so that '10' sorts after '9' rather than
+    after '1' (which is what lexicographic string compare would do)."""
+
+    def __init__(self, value):
+        super().__init__()
+        try:
+            self._num = float(value)
+        except (TypeError, ValueError):
+            self._num = 0.0
+
+    def __lt__(self, other):
+        if isinstance(other, NumericTableWidgetItem):
+            return self._num < other._num
+        try:
+            return self._num < float(other.text())
+        except (TypeError, ValueError):
+            return super().__lt__(other)
+
+
 # ============================================================
 # WORKERS
 # ============================================================
@@ -385,6 +407,41 @@ class DeleteWorker(QThread):
             self.done.emit(self._caller_token, False, f"Error: {exc}")
 
 
+class UpdateWorker(QThread):
+    """Run rohit.update_sale in the background so the UI stays responsive
+    while Excel is being saved and the coupon PNG is re-rendered."""
+    done = pyqtSignal(object, bool, str)  # caller_token, success, message
+
+    def __init__(self, sno, name, phone, address, caller_token=None):
+        super().__init__()
+        self._sno = sno
+        self._name = name
+        self._phone = phone
+        self._address = address
+        self._caller_token = caller_token
+
+    def run(self):
+        try:
+            ok = rohit.update_sale(
+                self._sno, self._name, self._phone, self._address,
+                regen_png=True,
+            )
+            if ok:
+                self.done.emit(
+                    self._caller_token, True,
+                    f"Sale #{self._sno} updated.",
+                )
+            else:
+                self.done.emit(
+                    self._caller_token, False,
+                    f"No sale #{self._sno} found.",
+                )
+        except RuntimeError as exc:
+            self.done.emit(self._caller_token, False, str(exc))
+        except Exception as exc:
+            self.done.emit(self._caller_token, False, f"Error: {exc}")
+
+
 class RefreshWorker(QThread):
     """Fetch sales rows + sold ranges in a background thread so the GUI
     thread never blocks on Excel / OneDrive file I/O during refreshes.
@@ -466,6 +523,66 @@ class ImageViewerDialog(QDialog):
         close = QPushButton("Close")
         close.clicked.connect(self.accept)
         lay.addWidget(close, alignment=Qt.AlignmentFlag.AlignCenter)
+
+
+class EditSaleDialog(QDialog):
+    """Dialog to edit the buyer details (Name, Phone, Address) of an
+    existing sale row.  Coupon numbers, qty, amount and type are not
+    editable here — only the buyer fields, per the update_sale contract."""
+
+    def __init__(self, sno, name="", phone="", address="", stype="SALE",
+                 parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"Edit Sale #{sno}")
+        self.setStyleSheet(f"background:{CREAM};")
+        self._sno = sno
+
+        lay = QVBoxLayout(self)
+        lay.setSpacing(10)
+        lay.setContentsMargins(20, 20, 20, 20)
+
+        title = QLabel(f"Edit Buyer Details — Sale #{sno}"
+                       + (f"  ({stype})" if stype != "SALE" else ""))
+        title.setProperty("heading", True)
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(title)
+
+        info = QLabel("Only the buyer details can be changed. Coupon numbers, "
+                      "quantity and amount stay locked.")
+        info.setWordWrap(True)
+        info.setStyleSheet(f"color:{GREY}; font-size:12px;")
+        lay.addWidget(info)
+
+        form = QFormLayout()
+        form.setSpacing(8)
+        self.name_in = QLineEdit(name)
+        self.name_in.setPlaceholderText("Buyer name")
+        self.phone_in = QLineEdit(phone)
+        self.phone_in.setPlaceholderText("Phone number")
+        self.addr_in = QLineEdit(address)
+        self.addr_in.setPlaceholderText("Address")
+        form.addRow("Name:", self.name_in)
+        form.addRow("Phone:", self.phone_in)
+        form.addRow("Address:", self.addr_in)
+        lay.addLayout(form)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setProperty("flat", True)
+        cancel_btn.clicked.connect(self.reject)
+        btn_row.addWidget(cancel_btn)
+        self.save_btn = QPushButton("Save Changes")
+        self.save_btn.clicked.connect(self.accept)
+        btn_row.addWidget(self.save_btn)
+        lay.addLayout(btn_row)
+
+    def values(self):
+        return (
+            self.name_in.text().strip(),
+            self.phone_in.text().strip(),
+            self.addr_in.text().strip(),
+        )
 
 
 # ============================================================
@@ -968,6 +1085,9 @@ class SalesTab(QWidget):
         self.table.setAlternatingRowColors(True)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        # Enable clickable-header sorting.  Numeric columns use
+        # NumericTableWidgetItem so Qt compares them as ints, not as strings.
+        self.table.setSortingEnabled(True)
         self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         for i in [0, 2, 4, 5, 6, 7, 8, 9]:
@@ -981,6 +1101,10 @@ class SalesTab(QWidget):
         self.view_btn.setProperty("flat", True)
         self.view_btn.clicked.connect(self.view_png)
         btn_row.addWidget(self.view_btn)
+        self.edit_btn = QPushButton("Edit Selected Sale")
+        self.edit_btn.setProperty("flat", True)
+        self.edit_btn.clicked.connect(self.edit_selected)
+        btn_row.addWidget(self.edit_btn)
         self.delete_btn = QPushButton("Delete Selected Sale")
         self.delete_btn.clicked.connect(self.delete_selected)
         btn_row.addWidget(self.delete_btn)
@@ -1002,30 +1126,63 @@ class SalesTab(QWidget):
             row_str = " ".join(str(c or "") for c in r).lower()
             if not q or q in row_str:
                 shown.append(r)
+
+        # Sorting is enabled on the table, so building rows triggers Qt's
+        # row-comparison.  Temporarily disable sorting while we populate,
+        # then re-apply the default sort (S.No descending = newest first).
+        self.table.setSortingEnabled(False)
         self.table.setRowCount(len(shown))
         for i, r in enumerate(shown):
             # Donation amount (index 10 in the row tuple).
             if len(r) >= 11 and r[10] is not None:
-                amt = f"\u20B9{r[10]}"
+                amt_val = r[10]
+                amt = f"\u20B9{amt_val}"
             else:
                 qty = (r[6] if len(r) >= 7 else 0) or 0
                 stype = r[8] if len(r) >= 9 else "SALE"
-                amt = f"\u20B9{rohit.price_for_set_size(qty) if stype == 'PHYSICAL' else qty * rohit.PRICE_PER_COUPON}"
-            vals = [
-                str(r[0] or ""),
-                str(r[1] or "") if r[1] else "<PHYSICAL>",
-                str(r[2] or ""),
-                str(r[3] or ""),
-                str(r[4] or ""),
-                str(r[5] or ""),
-                str(r[6] or ""),
-                str(r[7] or ""),
-                str(r[8] if len(r) >= 9 else "SALE"),
-                amt,
+                amt_val = (rohit.price_for_set_size(qty) if stype == "PHYSICAL"
+                           else qty * rohit.PRICE_PER_COUPON)
+                amt = f"\u20B9{amt_val}"
+
+            sno = r[0] if r[0] is not None else ""
+            start = r[4] if r[4] is not None else ""
+            end = r[5] if r[5] is not None else ""
+            qty_v = r[6] if r[6] is not None else ""
+
+            # Numeric columns -> NumericTableWidgetItem for correct sorting.
+            sno_item = NumericTableWidgetItem(sno)
+            sno_item.setText(str(sno))
+            start_item = NumericTableWidgetItem(start)
+            start_item.setText(str(start))
+            end_item = NumericTableWidgetItem(end)
+            end_item.setText(str(end))
+            qty_item = NumericTableWidgetItem(qty_v)
+            qty_item.setText(str(qty_v))
+            amt_item = NumericTableWidgetItem(amt_val)
+            amt_item.setText(amt)
+
+            name_disp = str(r[1] or "") if r[1] else "<PHYSICAL>"
+            items = [
+                sno_item,
+                QTableWidgetItem(name_disp),
+                QTableWidgetItem(str(r[2] or "")),
+                QTableWidgetItem(str(r[3] or "")),
+                start_item,
+                end_item,
+                qty_item,
+                QTableWidgetItem(str(r[7] or "")),
+                QTableWidgetItem(str(r[8] if len(r) >= 9 else "SALE")),
+                amt_item,
             ]
-            for c, v in enumerate(vals):
-                self.table.setItem(i, c, QTableWidgetItem(v))
+            for c, v in enumerate(items):
+                self.table.setItem(i, c, v)
+
         self.table.resizeColumnsToContents()
+        # Re-enable sorting and apply the default sort: S.No (column 0)
+        # descending, which shows the newest sale first — preserving the
+        # previous "recentest first" behaviour until the user clicks a header.
+        self.table.setSortingEnabled(True)
+        self.table.sortByColumn(0, Qt.SortOrder.DescendingOrder)
 
     def view_png(self):
         row = self.table.currentRow()
@@ -1077,6 +1234,57 @@ class SalesTab(QWidget):
             self, "Delete PNG", "Also delete the coupon PNG file?"
         ) == QMessageBox.StandardButton.Yes
         self._start_delete("sale", (sno, del_png), f"Sale #{sno} deleted.")
+
+    def edit_selected(self):
+        row = self.table.currentRow()
+        if row < 0:
+            QMessageBox.information(self, "Select", "Select a row first.")
+            return
+        sno_item = self.table.item(row, 0)
+        if not sno_item:
+            return
+        try:
+            sno = int(sno_item.text())
+        except (ValueError, TypeError):
+            return
+
+        # Read the currently-displayed values so the dialog starts with them.
+        name_item = self.table.item(row, 1)
+        phone_item = self.table.item(row, 2)
+        addr_item = self.table.item(row, 3)
+        type_item = self.table.item(row, 8)
+
+        name = name_item.text() if name_item else ""
+        phone = phone_item.text() if phone_item else ""
+        address = addr_item.text() if addr_item else ""
+        stype = type_item.text() if type_item else "SALE"
+        if name == "<PHYSICAL>":
+            name = ""  # physical rows start with blank buyer fields
+
+        dlg = EditSaleDialog(sno, name=name, phone=phone, address=address,
+                             stype=stype, parent=self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        new_name, new_phone, new_addr = dlg.values()
+        self._edit_ok_msg = f"Sale #{sno} updated."
+        self._edit_token = ("edit", sno)
+        self.edit_btn.setEnabled(False)
+        self._update_worker = UpdateWorker(
+            sno, new_name, new_phone, new_addr,
+            caller_token=self._edit_token,
+        )
+        self._update_worker.done.connect(self._on_update_done)
+        self._update_worker.start()
+
+    def _on_update_done(self, token, success, msg):
+        if token != getattr(self, "_edit_token", None):
+            return
+        self.edit_btn.setEnabled(True)
+        if success:
+            QMessageBox.information(self, "Updated", self._edit_ok_msg)
+            self.parent_window.refresh_all()
+        else:
+            QMessageBox.warning(self, "Problem", msg)
 
     def _start_delete(self, token, args, ok_msg):
         # Disable interaction while the background delete runs so the UI
