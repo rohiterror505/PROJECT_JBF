@@ -15,13 +15,20 @@ import base64
 import traceback
 from pathlib import Path
 
-from flask import Flask, jsonify, request, send_file, render_template, send_from_directory
+from flask import Flask, jsonify, request, send_file, render_template, send_from_directory, session, redirect, Response
 
 import rohit
 
 app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.jinja_env.auto_reload = True
+
+# Session secret — change this to any long random string for production.
+app.secret_key = "jbf-lucky-draw-secret-key-change-me-2024"
+
+# Hardcoded admin credentials. Change these to suit your deployment.
+ADMIN_USER = "admin"
+ADMIN_PASS = "12qwaszx"
 
 
 # ------------------------------------------------------------------
@@ -83,12 +90,71 @@ def index():
     p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates", "index.html")
     with open(p, "r", encoding="utf-8") as f:
         html = f.read()
-    from flask import Response
     resp = Response(html, mimetype="text/html")
     resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     resp.headers["Pragma"] = "no-cache"
     resp.headers["Expires"] = "0"
     return resp
+
+
+# ------------------------------------------------------------------
+# Auth
+# ------------------------------------------------------------------
+
+PUBLIC_PATHS = {"/login", "/api/login", "/logout"}
+
+@app.before_request
+def _require_login():
+    """Gate every page and API call behind a logged-in session, except
+    the login / logout endpoints themselves."""
+    path = request.path
+    if path in PUBLIC_PATHS:
+        return None
+    if session.get("user"):
+        return None
+    # Static-ish asset paths (if any) — allow through.
+    if path.startswith("/static/"):
+        return None
+    # API calls get a 401 JSON so the front-end can react; everything
+    # else is redirected to the login page.
+    if path.startswith("/api/"):
+        return jsonify({"success": False, "error": "Authentication required. Please log in."}), 401
+    return redirect("/login")
+
+
+@app.route("/login", methods=["GET"])
+def login_page():
+    if session.get("user"):
+        return redirect("/")
+    import os
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates", "login.html")
+    with open(p, "r", encoding="utf-8") as f:
+        html = f.read()
+    resp = Response(html, mimetype="text/html")
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
+
+
+@app.route("/api/login", methods=["POST"])
+def api_login():
+    data = request.get_json(silent=True) or {}
+    user = (data.get("username") or "").strip()
+    pw = data.get("password") or ""
+    if not user or not pw:
+        return _err("Please enter both username and password.")
+    if user == ADMIN_USER and pw == ADMIN_PASS:
+        session["user"] = user
+        session.permanent = True
+        return _ok({"redirect": "/", "message": "Login successful."})
+    return _err("Invalid username or password.", 401)
+
+
+@app.route("/logout", methods=["GET", "POST"])
+def logout():
+    session.clear()
+    return redirect("/login")
 
 
 # ------------------------------------------------------------------

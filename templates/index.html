@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#7A1F00">
 <title>Jai Bhadra Foundation — Lucky Draw Manager</title>
 <style>
   :root {
@@ -34,17 +35,20 @@
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; }
+  html { -webkit-text-size-adjust: 100%; }
   body {
     font-family: "Segoe UI", -apple-system, "Helvetica Neue", sans-serif;
     background: var(--cream);
     color: var(--ink);
     -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
     font-size: 14px;
     line-height: 1.5;
   }
 
   /* ---------- App shell ---------- */
-  .app { display: flex; min-height: 100vh; }
+  .app { display: flex; min-height: 100vh; min-height: 100dvh; }
 
   .sidebar {
     width: 244px;
@@ -57,6 +61,7 @@
     position: sticky;
     top: 0;
     height: 100vh;
+    height: 100dvh;
     box-shadow: 2px 0 12px rgba(0,0,0,0.12);
     z-index: 10;
   }
@@ -415,24 +420,328 @@
     border-radius: var(--radius-xs); padding: 7px 11px;
     cursor: pointer; font-size: 16px; color: var(--ink);
   }
+  .overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+    z-index: 140;
+  }
+  .overlay.show { display: block; }
+
+  /* ---------- Credit signature in sidebar ---------- */
+  .credit-foot {
+    padding: 12px 16px 16px;
+    border-top: 1px solid rgba(201,155,46,0.18);
+    font-size: 10.5px; line-height: 1.55; text-align: center;
+    color: rgba(243,210,100,0.7); font-weight: 600; letter-spacing: 0.3px;
+  }
+  .credit-foot .heart { color: var(--maroon-light); font-size: 11px; }
+  .credit-foot strong { color: var(--gold-light); font-weight: 700; }
+  .credit-foot .small {
+    display: block; margin-top: 3px; font-size: 9px; opacity: 0.7;
+    letter-spacing: 1px; text-transform: uppercase;
+  }
+
+  /* ============================================================
+     RESPONSIVE OVERRIDES — 1024 / 768 / 480 / 360
+     ============================================================ */
+
+  /* Tablet landscape & small laptops */
+  @media (max-width: 1024px) {
+    .sidebar { width: 220px; }
+    .content { padding: 22px 22px 36px; }
+    .topbar { padding: 14px 22px; }
+    .cards { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+    .card .c-value { font-size: 22px; }
+  }
+
+  /* Tablet / small tablet */
   @media (max-width: 860px) {
     .sidebar {
-      position: fixed; left: -260px; top: 0; height: 100vh;
+      position: fixed; left: -280px; top: 0; height: 100vh; height: 100dvh;
+      width: 260px;
       transition: left 0.25s ease; z-index: 150;
     }
     .sidebar.open { left: 0; }
     .menu-toggle { display: inline-block; }
     .content { padding: 18px 16px 36px; }
     .topbar { padding: 12px 16px; }
+    .topbar h2 { font-size: 16px; }
+
+    /* On tablet, Manage grid goes 2-col; full 1-col happens at 768 */
+    .grid.grid-3 { grid-template-columns: repeat(2, 1fr); }
+    .grid.grid-3 > .panel:last-child { grid-column: 1 / -1; }
+
+    /* Remove fixed max-widths that look cramped on tablet */
+    #tab-physical .panel,
+    #tab-draw .panel { max-width: 100% !important; }
   }
-  .overlay {
-    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
-    z-index: 140;
+
+  /* Phone / large phone — tables become card-stacks */
+  @media (max-width: 768px) {
+    .cards { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .card .c-value { font-size: 20px; }
+    .panel-head { padding: 12px 14px; flex-wrap: wrap; gap: 8px; }
+    .panel-body { padding: 16px; }
+    .panel-body.tight { padding: 12px 14px; }
+
+    /* Convert tables to stacked card rows */
+    .table-wrap.stack table { border-collapse: separate; border-spacing: 0 10px; }
+    .table-wrap.stack thead { display: none; }
+    .table-wrap.stack tbody tr {
+      display: block; background: var(--white);
+      border: 1px solid var(--line); border-radius: var(--radius-sm);
+      padding: 6px 12px; box-shadow: var(--shadow-sm);
+    }
+    .table-wrap.stack tbody tr:hover { background: var(--white); }
+    .table-wrap.stack tbody td {
+      display: flex; justify-content: space-between; gap: 12px;
+      padding: 7px 2px; border-bottom: 1px dashed var(--line-2);
+      text-align: right; word-break: break-word;
+    }
+    .table-wrap.stack tbody td:last-child { border-bottom: none; }
+    .table-wrap.stack tbody td::before {
+      content: attr(data-label); font-weight: 700; color: var(--ink-2);
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px;
+      text-align: left; flex-shrink: 0; padding-top: 1px;
+    }
+    .table-wrap.stack .empty-row td { display: block; text-align: center; padding: 18px; }
+    .table-wrap.stack .empty-row td::before { content: none; }
+
+    /* Manage grid collapses */
+    .grid.grid-3 { grid-template-columns: 1fr; }
+    .grid.grid-3 > .panel:last-child { grid-column: auto; }
+    .manage-grid { max-width: 100% !important; }
+
+    /* Lucky draw panels full width */
+    #tab-draw .panel { max-width: 100% !important; }
+
+    /* New sale / physical previews stack cleanly */
+    .preview-box { min-height: 220px; padding: 16px; }
+
+    /* Draw action buttons wrap nicely on tablet */
+    #tab-draw .panel-body > div[style*="display:flex"] { flex-wrap: wrap; }
   }
-  .overlay.show { display: block; }
+
+  /* Phone */
+  @media (max-width: 480px) {
+    .topbar { padding: 11px 14px; }
+    .topbar .sub { display: none; }
+    .topbar h2 { font-size: 15.5px; }
+    .topbar-actions .btn-label-hide { display: none; }
+    .content { padding: 14px 12px 32px; }
+    .cards { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .card { padding: 13px 13px 11px; }
+    .card .c-value { font-size: 18px; }
+    .card .c-label { font-size: 9.5px; }
+    .summary-bar { font-size: 12px; gap: 4px 16px; padding: 12px 14px; }
+
+    /* Touch-friendly tap targets */
+    .btn { padding: 11px 16px; min-height: 42px; }
+    .btn-sm { padding: 9px 14px; min-height: 38px; }
+    .row-link { display: inline-block; min-height: 32px; padding: 4px 2px; }
+    .nav-item { padding: 13px 14px; min-height: 44px; }
+
+    .panel-head h3 { font-size: 12.5px; }
+    .end-display { font-size: 15px; padding: 8px 10px; }
+    .alert { font-size: 12.5px; padding: 10px 12px; }
+
+    /* Sticky action rows so buttons stay reachable */
+    .topbar-actions { gap: 6px; }
+
+    /* Hide low-priority sales columns when stacked as cards to keep rows compact */
+    .table-wrap.stack td[data-label="Address"],
+    .table-wrap.stack td[data-label="Phone"],
+    .table-wrap.stack td[data-label="Type"],
+    .table-wrap.stack td[data-label="Qty"] { display: none; }
+    /* Dashboard recent-sales: hide less-critical columns on phone */
+    #dash-table td[data-label="Phone"],
+    #dash-table td[data-label="Date"],
+    #dash-table td[data-label="Qty"] { display: none; }
+    .table-wrap.stack td[data-label="Actions"] { width: 100%; justify-content: flex-start; gap: 16px; }
+
+    /* Topbar: let title wrap above actions on narrow phones */
+    .topbar { flex-wrap: wrap; gap: 8px; }
+    .topbar > div:first-child { flex: 1 1 auto; min-width: 0; }
+    .topbar h2 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .topbar-actions { flex: 0 0 auto; }
+
+    /* Lucky draw buttons stack full width */
+    #tab-draw .panel-body .btn { width: 100%; justify-content: center; }
+    #tab-draw .panel-body > div[style*="display:flex"] { flex-direction: column; gap: 10px; }
+
+    /* Physical panel action full width */
+    #ph-gen-btn { width: 100%; }
+  }
+
+  /* Small phone */
+  @media (max-width: 360px) {
+    .cards { grid-template-columns: 1fr; }
+    .card .c-value { font-size: 20px; }
+    .content { padding: 12px 10px 28px; }
+    .panel-body { padding: 14px 12px; }
+    .topbar { padding: 10px 12px; }
+    .brand h1 { font-size: 14px; }
+  }
+
+  /* Reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+
+  /* Focus-visible for keyboard nav */
+  .btn:focus-visible, .nav-item:focus-visible, .inp:focus-visible,
+  .row-link:focus-visible, select:focus-visible {
+    outline: 2px solid var(--maroon-2); outline-offset: 2px;
+  }
+
+  /* ============================================================
+     PREMIUM UPGRADES — toasts, skeletons, icons, micro-motion
+     ============================================================ */
+
+  /* ---- Toast notifications ---- */
+  .toast-stack {
+    position: fixed; top: 18px; right: 18px; z-index: 500;
+    display: flex; flex-direction: column; gap: 10px;
+    max-width: min(380px, calc(100vw - 36px)); pointer-events: none;
+  }
+  .toast {
+    pointer-events: auto;
+    background: var(--cream-2); border: 1px solid var(--line);
+    border-left: 4px solid var(--maroon-2);
+    border-radius: var(--radius-sm); padding: 13px 16px 13px 14px;
+    box-shadow: 0 10px 30px rgba(26,22,20,0.18), 0 4px 10px rgba(26,22,20,0.08);
+    display: flex; align-items: flex-start; gap: 11px;
+    font-size: 13.5px; font-weight: 600; color: var(--ink);
+    animation: toastIn 0.32s cubic-bezier(.2,.8,.2,1);
+    position: relative; overflow: hidden;
+  }
+  .toast.ok  { border-left-color: var(--green); }
+  .toast.err { border-left-color: var(--red); }
+  .toast.info{ border-left-color: #14507A; }
+  .toast.leaving { animation: toastOut 0.28s ease forwards; }
+  .toast .t-icon {
+    width: 22px; height: 22px; flex-shrink: 0; margin-top: 1px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .toast.ok .t-icon  { color: var(--green); }
+  .toast.err .t-icon { color: var(--red); }
+  .toast.info .t-icon{ color: #14507A; }
+  .toast .t-icon svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; }
+  .toast .t-body { flex: 1; line-height: 1.45; }
+  .toast .t-close {
+    background: transparent; border: none; cursor: pointer;
+    color: var(--muted); font-size: 16px; line-height: 1; padding: 0 2px;
+    flex-shrink: 0; margin-top: 1px;
+  }
+  .toast .t-close:hover { color: var(--ink); }
+  .toast .t-bar {
+    position: absolute; bottom: 0; left: 0; height: 3px;
+    background: var(--maroon-2); opacity: 0.5;
+    animation: toastBar 4s linear forwards;
+  }
+  .toast.ok .t-bar { background: var(--green); }
+  .toast.err .t-bar { background: var(--red); }
+  @keyframes toastIn  { from { opacity: 0; transform: translateX(40px) scale(0.96); } to { opacity: 1; transform: translateX(0) scale(1); } }
+  @keyframes toastOut { to   { opacity: 0; transform: translateX(40px) scale(0.96); } }
+  @keyframes toastBar { from { width: 100%; } to { width: 0%; } }
+
+  /* ---- Skeleton shimmer ---- */
+  .skeleton {
+    background: linear-gradient(90deg, var(--line-2) 25%, var(--line) 37%, var(--line-2) 63%);
+    background-size: 400% 100%; animation: shimmer 1.3s ease-in-out infinite;
+    border-radius: var(--radius-xs); display: inline-block;
+  }
+  @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+  .skel-card { height: 78px; border-radius: var(--radius); }
+  .skel-line { height: 13px; width: 100%; }
+  .skel-line.short { width: 45%; }
+  .skel-row td { padding: 11px 12px; }
+
+  /* ---- Stat card icons ---- */
+  .card .c-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .card .c-icon {
+    width: 30px; height: 30px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--cream); color: var(--maroon-2);
+    flex-shrink: 0;
+  }
+  .card.green .c-icon  { background: var(--green-bg); color: var(--green); }
+  .card.gold .c-icon   { background: var(--gold-soft); color: #8A6A14; }
+  .card.maroon .c-icon { background: #FBE9E4; color: var(--maroon-light); }
+  .card .c-icon svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.9; }
+  .card .c-value { font-variant-numeric: tabular-nums; }
+
+  /* ---- Richer empty state ---- */
+  .empty-state {
+    text-align: center; padding: 40px 20px; color: var(--muted);
+  }
+  .empty-state .es-icon {
+    width: 54px; height: 54px; margin: 0 auto 14px;
+    color: var(--line); opacity: 0.9;
+  }
+  .empty-state .es-icon svg { width: 100%; height: 100%; stroke: currentColor; fill: none; stroke-width: 1.4; }
+  .empty-state .es-title { font-size: 14px; font-weight: 700; color: var(--ink-2); margin-bottom: 4px; }
+  .empty-state .es-sub { font-size: 12.5px; }
+
+  /* ---- Panel head with icon ---- */
+  .panel-head h3 { display: inline-flex; align-items: center; gap: 8px; }
+  .panel-head h3 .ph-icon { color: var(--maroon-2); display: inline-flex; }
+  .panel-head h3 .ph-icon svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.9; }
+
+  /* ---- Section heading ---- */
+  .section-head {
+    display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px;
+  }
+  .section-head h2 {
+    font-size: 15px; font-weight: 800; color: var(--ink); letter-spacing: -0.2px;
+  }
+  .section-head .pill {
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+    background: var(--gold-soft); color: #8A6A14; padding: 3px 9px; border-radius: 20px;
+  }
+
+  /* ---- Inputs: floating feel + better select ---- */
+  select {
+    appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238A8079' stroke-width='2.4'><path d='M6 9l6 6 6-6'/></svg>");
+    background-repeat: no-repeat; background-position: right 12px center; padding-right: 34px;
+  }
+
+  /* ---- Topbar polish ---- */
+  .topbar { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(6px); background: rgba(255,254,250,0.92); }
+  .topbar .user-chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12px; font-weight: 700; color: var(--ink-2);
+    background: var(--cream); border: 1px solid var(--line);
+    padding: 6px 11px; border-radius: 20px;
+  }
+  .topbar .user-chip .dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--green);
+    box-shadow: 0 0 0 3px rgba(27,122,61,0.18);
+  }
+
+  /* ---- Count-up animation on cards ---- */
+  .card .c-value { animation: none; }
+  .card.flash .c-value { animation: flashUp 0.5s ease; }
+  @keyframes flashUp { 0% { transform: scale(1); } 40% { transform: scale(1.08); color: var(--maroon); } 100% { transform: scale(1); } }
+
+  /* ---- Winners podium highlight ---- */
+  #dr-table tbody tr:nth-child(1) td { background: linear-gradient(90deg, rgba(243,210,100,0.22), transparent); }
+  #dr-table tbody tr:nth-child(2) td { background: linear-gradient(90deg, rgba(201,155,46,0.14), transparent); }
+  #dr-table tbody tr:nth-child(3) td { background: linear-gradient(90deg, rgba(196,68,4,0.10), transparent); }
+
+  /* ---- Hover lift for panels ---- */
+  .panel { transition: box-shadow 0.2s; }
+  .panel:hover { box-shadow: var(--shadow-md); }
+
+  @media (max-width: 480px) {
+    .toast-stack { top: 10px; right: 10px; left: 10px; max-width: none; }
+    .topbar .user-chip { display: none; }
+  }
 </style>
 </head>
 <body>
+
+<div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
 
 <div class="app">
   <!-- Sidebar -->
@@ -476,6 +785,13 @@
       Draw: <span id="sf-draw">—</span><br>
       Max coupons: <span id="sf-max">5000</span><br>
       <span id="sf-site">jaibhadra.org</span>
+      <div style="margin-top:10px;">
+        <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;color:var(--gold-light);border-color:rgba(243,210,100,0.35);background:rgba(255,255,255,0.06);font-size:12px;" onclick="doLogout()">⏻ Logout</button>
+      </div>
+    </div>
+    <div class="credit-foot">
+      Developed by <strong>Rohit Kumar</strong> <span class="heart">&hearts;</span> in love for Jai Bhadra Foundation
+      <span class="small">Lucky Draw Manager</span>
     </div>
   </aside>
   <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
@@ -491,17 +807,20 @@
         </div>
       </div>
       <div class="topbar-actions">
-        <button class="btn btn-ghost btn-sm" onclick="loadState()">⟳ Refresh</button>
+        <span class="user-chip"><span class="dot"></span> Admin</span>
+        <button class="btn btn-ghost btn-sm" onclick="loadState()"><span class="btn-label-hide">⟳ </span>Refresh</button>
       </div>
     </header>
 
     <div class="content">
       <!-- DASHBOARD -->
       <section id="tab-dashboard" class="tab-pane active">
-        <div class="cards" id="dash-cards"></div>
+        <div class="cards" id="dash-cards">
+          <div class="skeleton skel-card"></div><div class="skeleton skel-card"></div><div class="skeleton skel-card"></div><div class="skeleton skel-card"></div>
+        </div>
         <div class="panel">
           <div class="panel-head">
-            <h3>Recent Sales</h3>
+            <h3><span class="ph-icon"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg></span>Recent Sales</h3>
             <button class="btn btn-ghost btn-sm" onclick="loadState()">Refresh</button>
           </div>
           <div class="table-wrap tight">
@@ -512,17 +831,17 @@
           </div>
         </div>
         <div class="panel">
-          <div class="panel-head"><h3>Generate Sample Coupon</h3></div>
+          <div class="panel-head"><h3><span class="ph-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 9h6v6H9z"/></svg></span>Generate Sample Coupon</h3></div>
           <div class="panel-body">
             <div class="alert info show" style="margin-bottom:14px;">
               Creates a preview coupon in the browser — nothing is saved to disk or the database.
             </div>
             <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
-              <div class="field" style="max-width:160px;">
+              <div class="field" style="flex:1 1 140px;min-width:0;">
                 <label>Coupon No</label>
                 <input type="number" class="inp" id="sm-num" value="0" min="0">
               </div>
-              <button class="btn btn-primary" id="sm-btn" onclick="loadSample()" style="padding:9px 22px;">
+              <button class="btn btn-primary" id="sm-btn" onclick="loadSample()" style="flex:1 1 160px;justify-content:center;padding:9px 22px;">
                 Generate Sample Coupon
               </button>
             </div>
@@ -539,7 +858,7 @@
         <div class="split">
           <div>
             <div class="panel">
-              <div class="panel-head"><h3>Buyer Details</h3></div>
+              <div class="panel-head"><h3><span class="ph-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg></span>Buyer Details</h3></div>
               <div class="panel-body">
                 <div class="field" style="margin-bottom:14px;">
                   <label>Name</label>
@@ -558,7 +877,7 @@
               </div>
             </div>
             <div class="panel">
-              <div class="panel-head"><h3>Coupon Numbers</h3></div>
+              <div class="panel-head"><h3><span class="ph-icon"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M9 9h6M9 13h4"/></svg></span>Coupon Numbers</h3></div>
               <div class="panel-body">
                 <div class="grid grid-2" style="margin-bottom:14px;">
                   <div class="field">
@@ -583,7 +902,7 @@
           </div>
           <div>
             <div class="panel" style="height:fit-content;">
-              <div class="panel-head"><h3>Live Preview</h3></div>
+              <div class="panel-head"><h3><span class="ph-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/></svg></span>Live Preview</h3></div>
               <div class="panel-body">
                 <div class="preview-box" id="ns-preview">Enter details to see a preview</div>
               </div>
@@ -598,7 +917,7 @@
           Generate coupon strips with no buyer details. Numbers are locked for physical sale. QR shows only the coupon number(s).
         </div>
         <div class="panel" style="max-width:540px;">
-          <div class="panel-head"><h3>Generate Physical Sets</h3></div>
+          <div class="panel-head"><h3><span class="ph-icon"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h10M7 14h6"/></svg></span>Generate Physical Sets</h3></div>
           <div class="panel-body">
             <div class="field" style="margin-bottom:14px;">
               <label>Set size</label>
@@ -632,7 +951,7 @@
       <section id="tab-sales" class="tab-pane">
         <div class="panel">
           <div class="panel-head">
-            <h3>All Sales</h3>
+            <h3><span class="ph-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>All Sales</h3>
             <button class="btn btn-ghost btn-sm" onclick="loadState()">⟳ Refresh</button>
           </div>
           <div class="panel-body tight">
@@ -663,9 +982,9 @@
 
       <!-- MANAGE -->
       <section id="tab-manage" class="tab-pane">
-        <div class="grid grid-3" style="max-width:900px;">
+        <div class="grid grid-3 manage-grid" style="max-width:900px;">
           <div class="panel">
-            <div class="panel-head"><h3>Delete Single Sale</h3></div>
+            <div class="panel-head"><h3><span class="ph-icon"><svg viewBox="0 0 24 24"><path d="M5 7h14M7 7l1 13h8l1-13M10 11v6M14 11v6"/><path d="M9 7V4h6v3"/></svg></span>Delete Single Sale</h3></div>
             <div class="panel-body">
               <div class="field" style="margin-bottom:12px;">
                 <label>S.No</label>
@@ -679,7 +998,7 @@
             </div>
           </div>
           <div class="panel">
-            <div class="panel-head"><h3>Delete Physical by Range</h3></div>
+            <div class="panel-head"><h3><span class="ph-icon"><svg viewBox="0 0 24 24"><path d="M3 7h18M3 12h18M3 17h18"/></svg></span>Delete Physical by Range</h3></div>
             <div class="panel-body">
               <div class="grid grid-2" style="margin-bottom:12px;">
                 <div class="field"><label>Start</label><input type="number" class="inp" id="mg-rs" value="1" min="1"></div>
@@ -693,7 +1012,7 @@
             </div>
           </div>
           <div class="panel">
-            <div class="panel-head"><h3>Bulk Deletes</h3></div>
+            <div class="panel-head"><h3><span class="ph-icon"><svg viewBox="0 0 24 24"><path d="M12 3l9 17H3z"/><path d="M12 10v5"/></svg></span>Bulk Deletes</h3></div>
             <div class="panel-body">
               <button class="btn btn-danger" style="width:100%;justify-content:center;margin-bottom:10px;" onclick="deleteAllPhysical()">Delete ALL Physical</button>
               <button class="btn btn-danger" style="width:100%;justify-content:center;" onclick="deleteAllSales()">Delete ALL Sales</button>
@@ -707,7 +1026,7 @@
       <section id="tab-gaps" class="tab-pane">
         <div class="summary-bar" id="gap-summary">Loading…</div>
         <div class="panel">
-          <div class="panel-head"><h3>Gap Ranges</h3></div>
+          <div class="panel-head"><h3><span class="ph-icon"><svg viewBox="0 0 24 24"><path d="M4 12h4l2-7 4 14 2-7h4"/></svg></span>Gap Ranges</h3></div>
           <div class="table-wrap">
             <table id="gap-table">
               <thead><tr><th>Gap Range</th><th>Count</th></tr></thead>
@@ -720,7 +1039,7 @@
       <!-- LUCKY DRAW -->
       <section id="tab-draw" class="tab-pane">
         <div class="panel" style="max-width:820px;">
-          <div class="panel-head"><h3>Lucky Draw &mdash; Pick 10 Winners</h3></div>
+          <div class="panel-head"><h3><span class="ph-icon"><svg viewBox="0 0 24 24"><path d="M12 2l2.5 6.5L21 9l-5 4.5L17.5 21 12 17l-5.5 4L8 13.5 3 9l6.5-.5z"/></svg></span>Lucky Draw &mdash; Pick 10 Winners</h3></div>
           <div class="panel-body">
             <div class="alert info show" style="margin-bottom:16px;">
               Draws 10 distinct winning coupon numbers from all sold coupons. Each winner gets one prize (1st&ndash;10th). Results are saved to the workbook and cannot be re-run until cleared.
@@ -741,7 +1060,7 @@
           </div>
         </div>
         <div class="panel" style="max-width:820px;">
-          <div class="panel-head"><h3>Winners</h3></div>
+          <div class="panel-head"><h3><span class="ph-icon"><svg viewBox="0 0 24 24"><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 01-10 0z"/><path d="M7 4H5v2a3 3 0 003 3M17 4h2v2a3 3 0 01-3 3"/></svg></span>Winners</h3></div>
           <div class="table-wrap">
             <table id="dr-table">
               <thead><tr><th>Prize</th><th>Gift Item</th><th>Coupon No</th><th>Set Range</th><th>Buyer</th><th>Phone</th><th>Type</th></tr></thead>
@@ -791,6 +1110,21 @@
 <script>
 let STATE = { sales: [], summary: {}, gap_ranges: [], max_coupon: 5000, draw_line: "", website: "" };
 let previewTimer = null;
+let prevSummary = null;
+
+const ICONS = {
+  sold:    '<svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4z"/><path d="M3 7v10l9 4 9-4V7"/></svg>',
+  revenue: '<svg viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>',
+  remain:  '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  gaps:    '<svg viewBox="0 0 24 24"><path d="M4 12h4l2-7 4 14 2-7h4"/></svg>',
+  rows:    '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="11" width="18" height="4" rx="1"/><rect x="3" y="18" width="18" height="3" rx="1"/></svg>',
+  phys:    '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h10M7 14h6"/></svg>',
+  last:    '<svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+  check:   '<svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>',
+  alert:   '<svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.3L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.3a2 2 0 00-3.4 0z"/></svg>',
+  info:    '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>',
+  empty:   '<svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4z"/><path d="M3 7v10l9 4 9-4V7M3 7l9 4 9-4"/></svg>',
+};
 
 const PAGE_META = {
   dashboard: { title: "Dashboard", sub: "Overview of sales and coupons" },
@@ -801,6 +1135,27 @@ const PAGE_META = {
   gaps:      { title: "Coupon Gaps", sub: "Find unassigned numbers in the sold span" },
   draw:      { title: "Lucky Draw", sub: "Pick 10 prize winners from sold coupons" },
 };
+
+// ---- Toast system ----
+function toast(msg, type, timeout) {
+  type = type || "info";
+  timeout = timeout || 4000;
+  const stack = document.getElementById("toast-stack");
+  const el = document.createElement("div");
+  el.className = "toast " + type;
+  const iconKey = type === "ok" ? "check" : type === "err" ? "alert" : "info";
+  el.innerHTML = `<span class="t-icon">${ICONS[iconKey]}</span><span class="t-body">${esc(msg)}</span><button class="t-close" aria-label="Dismiss">&times;</button><span class="t-bar"></span>`;
+  stack.appendChild(el);
+  const remove = () => {
+    el.classList.add("leaving");
+    setTimeout(() => el.remove(), 300);
+  };
+  el.querySelector(".t-close").addEventListener("click", remove);
+  const timer = setTimeout(remove, timeout);
+  el.addEventListener("mouseenter", () => { clearTimeout(timer); el.querySelector(".t-bar").style.animationPlayState = "paused"; });
+  return el;
+}
+function confirmDialog(msg) { return confirm(msg); }
 
 // ---- Sidebar / tabs ----
 document.querySelectorAll(".nav-item").forEach(btn => {
@@ -824,6 +1179,7 @@ function closeModal() { document.getElementById("modal").classList.remove("show"
 async function api(url, opts) {
   try {
     const r = await fetch(url, opts);
+    if (r.status === 401) { window.location.href = "/login"; throw new Error("Session expired. Please log in again."); }
     const j = await r.json();
     if (!j.success) throw new Error(j.error || "Unknown error");
     return j;
@@ -834,13 +1190,17 @@ async function api(url, opts) {
 }
 function showStatus(id, msg, isErr) {
   const el = id ? document.getElementById(id) : null;
-  if (!el) { alert(msg); return; }
+  if (!el) { toast(msg, isErr ? "err" : "ok"); return; }
   el.textContent = msg;
   el.className = "alert show " + (isErr ? "err" : "ok");
   if (!isErr) setTimeout(() => { el.className = "alert"; }, 4500);
 }
 function pad(n) { return (n || 0).toString().padStart(4, "0"); }
 function esc(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+function emptyState(title, sub) {
+  return `<div class="empty-state"><div class="es-icon">${ICONS.empty}</div><div class="es-title">${esc(title)}</div><div class="es-sub">${esc(sub)}</div></div>`;
+}
 
 // ---- Load state ----
 async function loadState() {
@@ -859,18 +1219,20 @@ async function loadState() {
 
 function renderDashboard() {
   const s = STATE.summary || {};
+  const flashCls = (key) => (prevSummary && prevSummary[key] !== undefined && prevSummary[key] !== s[key]) ? " flash" : "";
   const cards = [
-    { label: "Total Sold", value: s.total_sold||0, sub: "coupons", cls: "" },
-    { label: "Revenue", value: "₹" + (s.revenue||0).toLocaleString(), sub: "total donations", cls: "green" },
-    { label: "Remaining", value: s.remaining||0, sub: "of " + STATE.max_coupon, cls: "gold" },
-    { label: "Gaps", value: s.gaps||0, sub: "unassigned", cls: "maroon" },
-    { label: "Sale Rows", value: s.sale_rows||0, sub: "buyer sales", cls: "" },
-    { label: "Physical Rows", value: s.phys_rows||0, sub: "physical sets", cls: "maroon" },
-    { label: "Last Coupon", value: s.last_coupon||"-", sub: "most recent", cls: "gold" },
+    { key:"total_sold",  label: "Total Sold",    value: s.total_sold||0,                 sub: "coupons",        cls: "",        icon: ICONS.sold },
+    { key:"revenue",     label: "Revenue",       value: "₹" + (s.revenue||0).toLocaleString(), sub: "total donations", cls: "green",   icon: ICONS.revenue },
+    { key:"remaining",   label: "Remaining",     value: s.remaining||0,                  sub: "of " + STATE.max_coupon, cls: "gold", icon: ICONS.remain },
+    { key:"gaps",        label: "Gaps",          value: s.gaps||0,                       sub: "unassigned",     cls: "maroon",  icon: ICONS.gaps },
+    { key:"sale_rows",   label: "Sale Rows",     value: s.sale_rows||0,                  sub: "buyer sales",    cls: "",        icon: ICONS.rows },
+    { key:"phys_rows",   label: "Physical Rows", value: s.phys_rows||0,                  sub: "physical sets",  cls: "maroon",  icon: ICONS.phys },
+    { key:"last_coupon", label: "Last Coupon",   value: s.last_coupon||"-",              sub: "most recent",    cls: "gold",    icon: ICONS.last },
   ];
   document.getElementById("dash-cards").innerHTML = cards.map(c =>
-    `<div class="card ${c.cls}"><div class="c-label">${c.label}</div><div class="c-value">${c.value}</div><div class="c-sub">${c.sub}</div></div>`
+    `<div class="card ${c.cls}${flashCls(c.key)}"><div class="c-top"><div class="c-label">${c.label}</div><div class="c-icon">${c.icon}</div></div><div class="c-value">${c.value}</div><div class="c-sub">${c.sub}</div></div>`
   ).join("");
+  prevSummary = { ...s };
   const recent = (STATE.sales||[]).slice(-6).reverse();
   const tb = document.querySelector("#dash-table tbody");
   tb.innerHTML = recent.map(r => {
@@ -878,15 +1240,15 @@ function renderDashboard() {
     const tlabel = r.type === "PHYSICAL" ? "PHYSICAL" : "SALE";
     const amt = (r.amount != null) ? "₹" + Number(r.amount).toLocaleString() : "—";
     return `<tr>
-      <td><strong>${r.sno||""}</strong></td>
-      <td>${esc(r.name) || '<span style="color:#999;">— Physical —</span>'}</td>
-      <td>${esc(r.phone)||"—"}</td>
-      <td>${pad(r.start)}</td><td>${pad(r.end)}</td><td>${r.qty||""}</td>
-      <td style="white-space:nowrap;">${esc(r.date)||"—"}</td>
-      <td><span class="badge ${tcls}">${tlabel}</span></td>
-      <td style="font-weight:700;color:var(--green);">${amt}</td>
+      <td data-label="S.No"><strong>${r.sno||""}</strong></td>
+      <td data-label="Name">${esc(r.name) || '<span style="color:#999;">— Physical —</span>'}</td>
+      <td data-label="Phone">${esc(r.phone)||"—"}</td>
+      <td data-label="Start">${pad(r.start)}</td><td data-label="End">${pad(r.end)}</td><td data-label="Qty">${r.qty||""}</td>
+      <td data-label="Date" style="white-space:nowrap;">${esc(r.date)||"—"}</td>
+      <td data-label="Type"><span class="badge ${tcls}">${tlabel}</span></td>
+      <td data-label="Donation" style="font-weight:700;color:var(--green);">${amt}</td>
     </tr>`;
-  }).join("") || `<tr class="empty-row"><td colspan="9">No sales recorded yet</td></tr>`;
+  }).join("") || `<tr class="empty-row"><td colspan="9">${emptyState("No sales yet","Record your first sale from the New Sale tab.")}</td></tr>`;
 }
 
 // ---- Sales tab ----
@@ -951,21 +1313,21 @@ function renderSales() {
     const tlabel = r.type === "PHYSICAL" ? "PHYSICAL" : "SALE";
     const amt = (r.amount != null) ? "₹" + Number(r.amount).toLocaleString() : "—";
     return `<tr>
-      <td><strong>${r.sno||""}</strong></td>
-      <td>${esc(r.name) || '<span style="color:#999;">— Physical —</span>'}</td>
-      <td>${esc(r.phone)||"—"}</td>
-      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;">${esc(r.address)||"—"}</td>
-      <td>${pad(r.start)}</td><td>${pad(r.end)}</td><td>${r.qty||""}</td>
-      <td style="white-space:nowrap;">${esc(r.date)||"—"}</td>
-      <td><span class="badge ${tcls}">${tlabel}</span></td>
-      <td style="font-weight:700;color:var(--green);">${amt}</td>
-      <td><span class="row-link" onclick="viewCouponBySno(${r.sno})">View</span></td>
-      <td style="white-space:nowrap;">
+      <td data-label="S.No"><strong>${r.sno||""}</strong></td>
+      <td data-label="Name">${esc(r.name) || '<span style="color:#999;">— Physical —</span>'}</td>
+      <td data-label="Phone">${esc(r.phone)||"—"}</td>
+      <td data-label="Address" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;">${esc(r.address)||"—"}</td>
+      <td data-label="Start">${pad(r.start)}</td><td data-label="End">${pad(r.end)}</td><td data-label="Qty">${r.qty||""}</td>
+      <td data-label="Date" style="white-space:nowrap;">${esc(r.date)||"—"}</td>
+      <td data-label="Type"><span class="badge ${tcls}">${tlabel}</span></td>
+      <td data-label="Donation" style="font-weight:700;color:var(--green);">${amt}</td>
+      <td data-label="Image"><span class="row-link" onclick="viewCouponBySno(${r.sno})">View</span></td>
+      <td data-label="Actions" style="white-space:nowrap;">
         <span class="row-link" onclick="editSale(${r.sno})">Edit</span>
         <span class="row-link del" onclick="deleteSale(${r.sno})">Delete</span>
       </td>
     </tr>`;
-  }).join("") || `<tr class="empty-row"><td colspan="12">No sales found</td></tr>`;
+  }).join("") || `<tr class="empty-row"><td colspan="12">${emptyState("No sales found","Try a different search, or record a new sale.")}</td></tr>`;
   renderSortArrows();
 }
 
@@ -981,7 +1343,7 @@ function viewCouponBySno(sno) {
 // ---- Edit sale ----
 function editSale(sno) {
   const r = (STATE.sales||[]).find(s => Number(s.sno) === Number(sno));
-  if (!r) { alert("Sale #" + sno + " not found."); return; }
+  if (!r) { toast("Sale #" + sno + " not found.", "err"); return; }
   document.getElementById("ed-sno").value = sno;
   document.getElementById("ed-name").value = r.name || "";
   document.getElementById("ed-phone").value = r.phone || "";
@@ -1011,7 +1373,7 @@ async function saveEdit() {
     st.textContent = ""; st.className = "alert";
     closeEditModal();
     await loadState();
-    alert("Sale #" + sno + " updated.");
+    toast("Sale #" + sno + " updated.", "ok");
   } catch (e) {
     st.textContent = e.message; st.className = "alert show err";
   } finally {
@@ -1020,12 +1382,12 @@ async function saveEdit() {
 }
 
 async function deleteSale(sno) {
-  if (!confirm(`Delete sale #${sno}?\nCoupon numbers will be freed.`)) return;
-  const delPng = confirm("Also delete the coupon PNG file?") ? "1" : "0";
+  if (!confirmDialog(`Delete sale #${sno}?\nCoupon numbers will be freed.`)) return;
+  const delPng = confirmDialog("Also delete the coupon PNG file?") ? "1" : "0";
   try {
     await api(`/api/sale/${sno}?png=${delPng}`, { method: "DELETE" });
     await loadState();
-    alert("Sale #" + sno + " deleted.");
+    toast("Sale #" + sno + " deleted.", "ok");
   } catch (e) {}
 }
 
@@ -1042,11 +1404,11 @@ function renderGaps() {
   const gaps = STATE.gap_ranges || [];
   const tb = document.querySelector("#gap-table tbody");
   if (!gaps.length) {
-    tb.innerHTML = `<tr class="empty-row"><td colspan="2">No gaps — every number from ${s.low} to ${s.high} is assigned.</td></tr>`;
+    tb.innerHTML = `<tr class="empty-row"><td colspan="2">${emptyState("No gaps","Every number from " + (s.low||"—") + " to " + (s.high||"—") + " is assigned.")}</td></tr>`;
   } else {
     tb.innerHTML = gaps.map(g => {
       const label = g.start === g.end ? pad(g.start) : `${pad(g.start)} — ${pad(g.end)}`;
-      return `<tr><td style="font-weight:600;">${label}</td><td><span class="badge phys">${g.count}</span></td></tr>`;
+      return `<tr><td data-label="Gap Range" style="font-weight:600;">${label}</td><td data-label="Count"><span class="badge phys">${g.count}</span></td></tr>`;
     }).join("");
   }
 }
@@ -1107,6 +1469,7 @@ async function doSale() {
       body: JSON.stringify({ name, phone, address: addr, start, qty })
     });
     showStatus("ns-status", j.message, false);
+    toast("Sale recorded successfully.", "ok");
     await loadState();
   } catch (e) {
     showStatus("ns-status", e.message, true);
@@ -1152,6 +1515,7 @@ async function doPhysical() {
     });
     bar.style.width = "100%";
     showStatus("ph-status", j.message, false);
+    toast("Physical sets generated.", "ok");
     await loadState();
     setTimeout(() => { bar.style.width = "0%"; }, 2500);
   } catch (e) {
@@ -1223,6 +1587,7 @@ async function loadSample() {
     box.className = "preview-box";
     box.innerHTML = `<img src="${j.image}" alt="Sample Coupon ${pad(num)}" style="cursor:pointer;" onclick="openSampleModal('${j.image}')">`;
     showStatus("sm-status", `Sample coupon ${pad(num)} generated (₹100). Not saved to database.`, false);
+    toast(`Sample coupon ${pad(num)} ready.`, "ok");
   } catch (e) {
     box.className = "preview-box";
     box.innerHTML = "Preview unavailable";
@@ -1250,6 +1615,7 @@ async function loadDrawResults() {
     if (!results) {
       sb.innerHTML = "<span>No draw conducted yet. Click <strong>Conduct Draw</strong> to pick 10 winners from sold coupons.</span>";
       drawBtn.disabled = false;
+      tb.innerHTML = `<tr class="empty-row"><td colspan="7">${emptyState("No winners yet","Conduct the draw to randomly pick 10 winners.")}</td></tr>`;
     } else {
       const drawnAt = results[0].drawn_at || "—";
       sb.innerHTML = `<span>Draw completed on <strong>${esc(drawnAt)}</strong> — 10 winners saved.</span>`;
@@ -1260,13 +1626,13 @@ async function loadDrawResults() {
         const coupon = r.coupon_no != null ? pad(r.coupon_no) : "—";
         const setRange = r.set_range ? esc(r.set_range) : "—";
         return `<tr>
-          <td><strong>${esc(r.prize)}</strong></td>
-          <td>${esc(r.gift)}</td>
-          <td style="font-weight:700;color:var(--maroon-2);font-size:15px;">${coupon}</td>
-          <td>${setRange}</td>
-          <td>${esc(r.buyer)}</td>
-          <td>${esc(r.phone)||"—"}</td>
-          <td><span class="badge ${tcls}">${tlabel}</span></td>
+          <td data-label="Prize"><strong>${esc(r.prize)}</strong></td>
+          <td data-label="Gift">${esc(r.gift)}</td>
+          <td data-label="Coupon No" style="font-weight:700;color:var(--maroon-2);font-size:15px;">${coupon}</td>
+          <td data-label="Set Range">${setRange}</td>
+          <td data-label="Buyer">${esc(r.buyer)}</td>
+          <td data-label="Phone">${esc(r.phone)||"—"}</td>
+          <td data-label="Type"><span class="badge ${tcls}">${tlabel}</span></td>
         </tr>`;
       }).join("");
     }
@@ -1286,6 +1652,7 @@ async function conductDraw() {
     const j = await api("/api/draw", { method: "POST" });
     msg.className = "alert show ok";
     msg.textContent = j.message;
+    toast("Lucky Draw complete — 10 winners picked!", "ok");
     await loadDrawResults();
   } catch (e) {
     msg.className = "alert show err";
@@ -1301,6 +1668,7 @@ async function clearDraw() {
     const j = await api("/api/draw/clear", { method: "POST" });
     msg.className = "alert show ok";
     msg.textContent = j.message;
+    toast("Draw results cleared.", "info");
     await loadDrawResults();
   } catch (e) {
     msg.className = "alert show err";
@@ -1309,8 +1677,29 @@ async function clearDraw() {
 }
 
 // ---- Init ----
+function doLogout() {
+  if (!confirmDialog("Sign out of the Lucky Draw Manager?")) return;
+  toast("Signing out…", "info", 1200);
+  fetch("/logout", { method: "POST" }).finally(() => { window.location.href = "/login"; });
+}
+
+// Apply card-stack layout to tables on small screens
+function applyResponsiveTables() {
+  const isPhone = window.matchMedia("(max-width: 768px)").matches;
+  document.querySelectorAll(".table-wrap").forEach(w => {
+    w.classList.toggle("stack", isPhone);
+  });
+}
+window.addEventListener("resize", applyResponsiveTables);
+
+// Redirect to login if API returns 401 (session expired)
+window.addEventListener("unhandledrejection", function (e) {
+  // handled per-call; this is a safety net
+});
+
 loadState();
 updatePhysicalPlan();
+applyResponsiveTables();
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 </script>
 </body>

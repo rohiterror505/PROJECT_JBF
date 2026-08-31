@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#7A1F00">
+<title>Sign in — Jai Bhadra Foundation</title>
+<style>
+  :root {
+    --maroon: #9A2A00;
+    --maroon-2: #C44404;
+    --maroon-dark: #5C1600;
+    --maroon-deep: #3D0F00;
+    --gold: #C99B2E;
+    --gold-light: #F3D264;
+    --gold-pale: #FFF6D6;
+    --gold-soft: #FAEFC4;
+    --cream: #FBF7EE;
+    --cream-2: #FFFEFA;
+    --white: #FFFFFF;
+    --ink: #1A1614;
+    --ink-2: #4A4340;
+    --muted: #8A8079;
+    --line: #EAE3D5;
+    --red: #B33A1A;
+    --red-bg: #FBE9E4;
+    --green: #1B7A3D;
+    --green-bg: #E5F3EA;
+    --radius: 14px;
+    --radius-sm: 10px;
+    --radius-xs: 7px;
+    --shadow-lg: 0 30px 70px rgba(0,0,0,0.35), 0 10px 30px rgba(0,0,0,0.18);
+    --shadow-md: 0 8px 24px rgba(26,22,20,0.10), 0 3px 8px rgba(26,22,20,0.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: "Segoe UI", -apple-system, "Helvetica Neue", sans-serif;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+    line-height: 1.5;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 26px;
+    padding: clamp(14px, 4vw, 40px);
+    background:
+      radial-gradient(1100px 700px at 18% 8%, rgba(243,210,100,0.10), transparent 60%),
+      radial-gradient(900px 600px at 88% 92%, rgba(196,68,4,0.18), transparent 55%),
+      linear-gradient(135deg, var(--maroon-dark) 0%, var(--maroon) 45%, var(--maroon-deep) 100%);
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  /* Decorative grain / glow layers */
+  .bg-glow {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(420px 420px at 50% 38%, rgba(243,210,100,0.12), transparent 70%);
+    animation: breathe 7s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%,100% { opacity: 0.55; transform: scale(1); }
+    50%     { opacity: 0.9;  transform: scale(1.06); }
+  }
+  .bg-rings {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.5;
+    background-image:
+      repeating-radial-gradient(circle at 50% 50%, transparent 0, transparent 80px, rgba(243,210,100,0.04) 80px, rgba(243,210,100,0.04) 81px);
+  }
+  .bg-orb {
+    position: fixed; pointer-events: none; z-index: 0;
+    border-radius: 50%; filter: blur(60px); opacity: 0.5;
+  }
+  .bg-orb.o1 { width: 320px; height: 320px; top: -80px; right: -60px; background: radial-gradient(circle, rgba(243,210,100,0.5), transparent 70%); animation: float1 12s ease-in-out infinite; }
+  .bg-orb.o2 { width: 380px; height: 380px; bottom: -120px; left: -100px; background: radial-gradient(circle, rgba(196,68,4,0.55), transparent 70%); animation: float2 15s ease-in-out infinite; }
+  @keyframes float1 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-30px, 40px); } }
+  @keyframes float2 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(40px, -30px); } }
+
+  /* Card */
+  .card {
+    position: relative; z-index: 1;
+    width: 100%; max-width: 400px;
+    background: linear-gradient(180deg, var(--cream-2), var(--cream));
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    border: 1px solid rgba(201,155,46,0.35);
+    padding: clamp(26px, 5vw, 40px) clamp(22px, 5vw, 38px);
+    animation: rise 0.6s cubic-bezier(.2,.8,.2,1) both;
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(18px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .card::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light), var(--gold));
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+
+  /* Brand */
+  .brand { text-align: center; margin-bottom: 26px; }
+  .brand .logo {
+    width: 62px; height: 62px; margin: 0 auto 14px;
+    background: linear-gradient(160deg, var(--gold-light), var(--gold));
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 30px; font-weight: 800; color: var(--maroon-dark);
+    box-shadow: 0 0 0 4px rgba(243,210,100,0.28), 0 8px 18px rgba(154,42,0,0.25);
+  }
+  .brand h1 {
+    font-size: clamp(19px, 4.2vw, 23px); font-weight: 800;
+    color: var(--maroon); letter-spacing: -0.3px; line-height: 1.2;
+  }
+  .brand .sub {
+    font-size: 12px; color: var(--muted); margin-top: 6px;
+    letter-spacing: 1.4px; text-transform: uppercase; font-weight: 600;
+  }
+  .brand .accent {
+    display: block; width: 46px; height: 3px; margin: 14px auto 0;
+    background: var(--gold); border-radius: 3px;
+  }
+  .brand .tagline {
+    margin-top: 14px; font-size: 12.5px; color: var(--muted);
+    font-style: italic; font-weight: 500; line-height: 1.5;
+  }
+
+  /* Form */
+  .field { margin-bottom: 16px; }
+  .field label {
+    display: block; font-size: 12px; font-weight: 700; color: var(--ink-2);
+    margin-bottom: 7px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .inp-wrap { position: relative; }
+  .inp {
+    width: 100%; padding: 13px 14px;
+    border: 1.5px solid var(--line); border-radius: var(--radius-sm);
+    font-size: 16px; color: var(--ink); background: var(--white);
+    transition: border-color 0.18s, box-shadow 0.18s;
+    font-family: inherit;
+    -webkit-appearance: none; appearance: none;
+  }
+  .inp:focus {
+    outline: none; border-color: var(--maroon-2);
+    box-shadow: 0 0 0 4px rgba(196,68,4,0.12);
+  }
+  .inp::placeholder { color: #C4B8AC; }
+  .inp-wrap.with-toggle .inp { padding-right: 48px; }
+  .toggle-eye {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    width: 36px; height: 36px; border: none; background: transparent;
+    cursor: pointer; color: var(--muted); border-radius: var(--radius-xs);
+    display: flex; align-items: center; justify-content: center;
+    transition: color 0.15s, background 0.15s;
+  }
+  .toggle-eye:hover { color: var(--maroon-2); background: var(--cream); }
+  .toggle-eye svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.9; }
+
+  .row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; margin: 4px 0 22px;
+  }
+  .check {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 13px; color: var(--ink-2); cursor: pointer; user-select: none;
+  }
+  .check input { width: 17px; height: 17px; accent-color: var(--maroon-2); }
+  .hint { font-size: 12px; color: var(--muted); text-decoration: none; }
+  .hint:hover { color: var(--maroon-2); text-decoration: underline; }
+
+  .btn {
+    width: 100%; padding: 14px 20px;
+    border: none; border-radius: var(--radius-sm);
+    font-size: 15px; font-weight: 800; letter-spacing: 0.3px;
+    cursor: pointer; transition: all 0.18s;
+    display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+    font-family: inherit;
+    background: linear-gradient(180deg, var(--maroon-2), var(--maroon));
+    color: var(--gold-light);
+    box-shadow: 0 6px 16px rgba(154,42,0,0.30);
+  }
+  .btn:hover:not(:disabled) {
+    background: linear-gradient(180deg, var(--maroon-light), var(--maroon-2));
+    box-shadow: 0 9px 22px rgba(154,42,0,0.38);
+    transform: translateY(-1px);
+  }
+  .btn:active:not(:disabled) { transform: translateY(0); }
+  .btn:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
+  .btn .spin {
+    width: 17px; height: 17px;
+    border: 2.5px solid rgba(243,210,100,0.35); border-top-color: var(--gold-light);
+    border-radius: 50%; animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .alert {
+    padding: 11px 14px; border-radius: var(--radius-sm);
+    font-size: 13px; font-weight: 600; margin-bottom: 16px;
+    display: none; align-items: center; gap: 9px;
+  }
+  .alert.show { display: flex; animation: shake 0.4s; }
+  .alert.err { background: var(--red-bg); color: var(--red); border: 1px solid #F0CFC6; }
+  .alert.ok  { background: var(--green-bg); color: var(--green); border: 1px solid #BFE4CC; }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
+  }
+
+  /* Credit signature */
+  .credit {
+    position: relative; z-index: 1;
+    margin-top: 0; text-align: center;
+    font-size: clamp(11px, 2.8vw, 13px); font-weight: 600;
+    color: var(--gold-light); letter-spacing: 0.7px; line-height: 1.7;
+    max-width: 520px;
+  }
+  .credit .heart {
+    color: var(--maroon-2); display: inline-block;
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { transform: scale(1); opacity: 0.85; }
+    50%     { transform: scale(1.18); opacity: 1; }
+  }
+  .credit .small {
+    display: block; margin-top: 4px; font-size: 10.5px; font-weight: 500;
+    color: rgba(243,210,100,0.6); letter-spacing: 1.6px; text-transform: uppercase;
+  }
+
+  /* Back link */
+  .back-link {
+    position: fixed; top: 18px; left: 18px; z-index: 2;
+    font-size: 12px; color: rgba(243,210,100,0.75); text-decoration: none;
+    letter-spacing: 0.5px; font-weight: 600;
+  }
+  .back-link:hover { color: var(--gold-light); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+
+  /* Short screens: let content scroll instead of getting crushed */
+  @media (max-height: 680px) {
+    body { justify-content: flex-start; padding-top: clamp(20px, 6vh, 48px); }
+    .credit { margin-top: 20px; margin-bottom: 24px; }
+  }
+
+  @media (max-width: 360px) {
+    .card { padding: 22px 18px; }
+    .inp { padding: 12px 12px; }
+    .btn { padding: 13px 16px; }
+  }
+</style>
+</head>
+<body>
+  <div class="bg-glow"></div>
+  <div class="bg-rings"></div>
+  <div class="bg-orb o1"></div>
+  <div class="bg-orb o2"></div>
+  <a class="back-link" href="https://jaibhadra.org" rel="noopener" target="_blank">↗ jaibhadra.org</a>
+
+  <main class="card" role="main">
+    <div class="brand">
+      <div class="logo">ज</div>
+      <h1>Jai Bhadra Foundation</h1>
+      <div class="sub">Lucky Draw Manager</div>
+      <span class="accent"></span>
+      <div class="tagline">Serving with devotion · Spreading hope through every coupon</div>
+    </div>
+
+    <div id="alert" class="alert" role="alert" aria-live="polite"></div>
+
+    <form id="login-form" autocomplete="on" novalidate>
+      <div class="field">
+        <label for="username">Username</label>
+        <div class="inp-wrap">
+          <input id="username" name="username" class="inp" type="text"
+                 placeholder="Enter your username" autocomplete="username"
+                 autocapitalize="none" autocorrect="off" spellcheck="false" required>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="password">Password</label>
+        <div class="inp-wrap with-toggle">
+          <input id="password" name="password" class="inp" type="password"
+                 placeholder="Enter your password" autocomplete="current-password" required>
+          <button type="button" class="toggle-eye" id="toggle-eye" aria-label="Show password">
+            <svg id="eye-icon" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="row">
+        <label class="check"><input type="checkbox" id="remember" name="remember"> Remember me</label>
+        <a class="hint" href="https://jaibhadra.org" target="_blank" rel="noopener">Need help?</a>
+      </div>
+
+      <button type="submit" class="btn" id="submit-btn">
+        <span id="btn-label">Sign in</span>
+      </button>
+    </form>
+  </main>
+
+  <div class="credit">
+    Developed by <strong>Rohit Kumar</strong> <span class="heart">&hearts;</span> in love for Jai Bhadra Foundation
+    <span class="small">Crafted with care &middot; Lucky Draw Manager</span>
+  </div>
+
+<script>
+(function () {
+  const form = document.getElementById("login-form");
+  const alertBox = document.getElementById("alert");
+  const submitBtn = document.getElementById("submit-btn");
+  const btnLabel = document.getElementById("btn-label");
+  const userInput = document.getElementById("username");
+  const passInput = document.getElementById("password");
+  const toggleEye = document.getElementById("toggle-eye");
+
+  function showAlert(msg, isErr) {
+    alertBox.textContent = msg;
+    alertBox.className = "alert show " + (isErr ? "err" : "ok");
+    if (!isErr) setTimeout(() => { alertBox.className = "alert"; }, 4000);
+  }
+
+  // Show / hide password
+  let visible = false;
+  toggleEye.addEventListener("click", function () {
+    visible = !visible;
+    passInput.type = visible ? "text" : "password";
+    toggleEye.setAttribute("aria-label", visible ? "Hide password" : "Show password");
+    toggleEye.style.color = visible ? "var(--maroon-2)" : "";
+  });
+
+  // Restore remembered username
+  try {
+    const saved = localStorage.getItem("jbf_remember_user");
+    if (saved) { userInput.value = saved; document.getElementById("remember").checked = true; }
+  } catch (e) {}
+
+  // Focus username if empty, else password
+  if (userInput.value) passInput.focus(); else userInput.focus();
+
+  form.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const user = userInput.value.trim();
+    const pass = passInput.value;
+    if (!user || !pass) { showAlert("Please enter both username and password.", true); return; }
+
+    submitBtn.disabled = true;
+    btnLabel.innerHTML = '<span class="spin"></span> Signing in…';
+    alertBox.className = "alert";
+
+    try {
+      const r = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user, password: pass })
+      });
+      const j = await r.json();
+      if (!j.success) {
+        showAlert(j.error || "Login failed.", true);
+        submitBtn.disabled = false;
+        btnLabel.textContent = "Sign in";
+        passInput.select();
+        return;
+      }
+      if (document.getElementById("remember").checked) {
+        try { localStorage.setItem("jbf_remember_user", user); } catch (e) {}
+      } else {
+        try { localStorage.removeItem("jbf_remember_user"); } catch (e) {}
+      }
+      showAlert("Welcome! Redirecting…", false);
+      const dest = j.redirect || "/";
+      setTimeout(() => { window.location.href = dest; }, 350);
+    } catch (err) {
+      showAlert("Network error. Please check your connection and try again.", true);
+      submitBtn.disabled = false;
+      btnLabel.textContent = "Sign in";
+    }
+  });
+})();
+</script>
+</body>
+</html>
