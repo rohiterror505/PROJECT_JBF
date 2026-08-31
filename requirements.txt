@@ -1,4 +1,10 @@
-PyQt6>=6.6
+# Web server (Render installs these)
+flask>=3.0
+gunicorn>=21.0
 qrcode[pil]>=7.4
 pillow>=10.0
 openpyxl>=3.1
+psycopg2-binary>=2.9
+
+# Desktop app only (not needed on Render, installed locally)
+PyQt6>=6.6

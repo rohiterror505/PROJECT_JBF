@@ -230,7 +230,9 @@ def api_sample():
 
 @app.route("/api/sale", methods=["POST"])
 def api_sale():
-    """Record a normal sale: generate coupon PNG + append to Excel."""
+    """Record a normal sale.  In Excel mode a PNG is saved to disk; in
+    Postgres (cloud) mode the coupon is rendered on demand later, so no
+    file is written here."""
     data = request.get_json(force=True)
     try:
         name = (data.get("name") or "").strip()
@@ -254,13 +256,16 @@ def api_sale():
             return _err(
                 f"Coupons {overlap[0]:04d}-{overlap[1]:04d} are already sold."
             )
-        filename = rohit.create_coupon(
-            start, end, buyer=name or None,
-            phone=phone or None, address=address or None, amount=amount,
-        )
+        filename = None
+        if not rohit._USE_POSTGRES:
+            filename = rohit.create_coupon(
+                start, end, buyer=name or None,
+                phone=phone or None, address=address or None, amount=amount,
+            )
         rohit.record_sale(name, phone, address, start, end, amount=amount)
-        return _ok({"message": f"Sale complete! Coupons {start:04d}-{end:04d} saved as {filename}.",
-                     "filename": filename})
+        msg = (f"Sale complete! Coupons {start:04d}-{end:04d} recorded."
+               + (f" Saved as {filename}." if filename else ""))
+        return _ok({"message": msg, "filename": filename})
     except RuntimeError as exc:
         return _err(str(exc), 500)
     except Exception as exc:
@@ -296,7 +301,8 @@ def api_physical():
             s = start + i * set_size
             e = s + set_size - 1
             try:
-                rohit.create_coupon(s, e, amount=set_amount)
+                if not rohit._USE_POSTGRES:
+                    rohit.create_coupon(s, e, amount=set_amount)
                 rohit.record_sale(
                     None, None, None, s, e, sale_type="PHYSICAL",
                     set_size=set_size, amount=set_amount,
@@ -368,11 +374,106 @@ def api_delete_all_sales():
 
 @app.route("/api/coupon-image/<path:filename>")
 def api_coupon_image(filename):
-    """Serve a generated coupon PNG from the output folder."""
+    """Serve a generated coupon PNG from the output folder (Excel mode)."""
     path = rohit.OUTPUT_DIR / filename
     if not path.exists():
         return _err("File not found", 404)
     return send_file(str(path), mimetype="image/png")
+
+
+@app.route("/api/coupon-render/<int:sno>")
+def api_coupon_render(sno):
+    """Render a coupon PNG on demand from the sale row's data (works in
+    both Excel and Postgres mode — no disk file needed).  Used by the web
+    UI's Sales 'View' button so coupons display even on cloud hosting
+    where no PNGs are saved to disk."""
+    try:
+        rows = rohit.list_sales(print_it=False)
+    except Exception as exc:
+        return _err(str(exc), 500)
+    row = None
+    for r in rows:
+        try:
+            if int(r[0]) == sno:
+                row = r
+                break
+        except (ValueError, TypeError):
+            continue
+    if row is None:
+        return _err("Sale not found", 404)
+    try:
+        start = int(row[4])
+        end = int(row[5])
+        name = row[1] if len(row) > 1 and row[1] else None
+        phone = row[2] if len(row) > 2 and row[2] else None
+        address = row[3] if len(row) > 3 and row[3] else None
+        stype = row[8] if len(row) >= 9 and row[8] else "SALE"
+        set_sz = row[9] if len(row) >= 10 and row[9] else None
+        amount = row[10] if len(row) >= 11 and row[10] else None
+        if amount is None:
+            qty = end - start + 1
+            amount = (rohit.price_for_set_size(qty) if stype == "PHYSICAL"
+                      else qty * rohit.PRICE_PER_COUPON)
+        img = rohit._render_coupon(
+            start, end, buyer=name, phone=phone, address=address, amount=amount
+        ).convert("RGB")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
+        return send_file(buf, mimetype="image/png")
+    except Exception as exc:
+        return _err(str(exc), 500)
+
+
+# ------------------------------------------------------------------
+# Lucky Draw
+# ------------------------------------------------------------------
+
+@app.route("/api/draw", methods=["POST"])
+def api_draw():
+    """Conduct the Lucky Draw: pick 10 distinct winners from sold coupons
+    and save the results to the workbook.  Returns the winners list."""
+    try:
+        if rohit.has_draw_results():
+            return _err("Lucky Draw results already exist. Clear them first.", 409)
+    except RuntimeError as exc:
+        return _err(str(exc), 500)
+
+    try:
+        results = rohit.draw_winners()
+    except RuntimeError as exc:
+        return _err(str(exc), 500)
+    except Exception as exc:
+        return _err(str(exc), 500)
+
+    return _ok({
+        "message": f"Draw complete! 10 winners selected.",
+        "results": results,
+    })
+
+
+@app.route("/api/draw/results")
+def api_draw_results():
+    """Return the saved draw results, or null if no draw has been conducted."""
+    try:
+        results = rohit.get_draw_results()
+    except RuntimeError as exc:
+        return _err(str(exc), 500)
+    return _ok({"results": results})
+
+
+@app.route("/api/draw/clear", methods=["POST"])
+def api_draw_clear():
+    """Clear saved draw results so a new draw can be conducted."""
+    try:
+        cleared = rohit.clear_draw_results()
+    except RuntimeError as exc:
+        return _err(str(exc), 500)
+    return _ok({
+        "message": "Lucky Draw results cleared." if cleared
+                   else "No results to clear.",
+        "cleared": cleared,
+    })
 
 
 if __name__ == "__main__":

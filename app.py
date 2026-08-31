@@ -408,6 +408,40 @@ class RefreshWorker(QThread):
             self.done.emit(None, None, f"Error: {exc}")
 
 
+class DrawActionWorker(QThread):
+    """Run a single draw-related rohit function (draw_winners,
+    clear_draw_results, or get_draw_results) off the GUI thread.
+
+    Emits (action_tag, success, message, results_json) where results_json
+    is the list of result dicts (only meaningful for draw / get_draw_results)."""
+    done = pyqtSignal(str, bool, str, object)
+
+    def __init__(self, action):
+        super().__init__()
+        self._action = action  # "draw" | "clear" | "load"
+
+    def run(self):
+        tag = self._action
+        try:
+            if tag == "draw":
+                results = rohit.draw_winners()
+                self.done.emit(tag, True, "Draw complete! 10 winners selected.", results)
+            elif tag == "clear":
+                cleared = rohit.clear_draw_results()
+                msg = ("Lucky Draw results cleared." if cleared
+                       else "No results to clear.")
+                self.done.emit(tag, True, msg, None)
+            elif tag == "load":
+                results = rohit.get_draw_results()
+                self.done.emit(tag, True, "Loaded.", results)
+            else:
+                self.done.emit(tag, False, "Unknown action.", None)
+        except RuntimeError as exc:
+            self.done.emit(tag, False, str(exc), None)
+        except Exception as exc:
+            self.done.emit(tag, False, f"Error: {exc}", None)
+
+
 # ============================================================
 # DIALOGS
 # ============================================================
@@ -1294,6 +1328,176 @@ class GapsTab(QWidget):
             self.table.setItem(i, 1, QTableWidgetItem(count))
 
 
+class LuckyDrawTab(QWidget):
+    def __init__(self, parent_window):
+        super().__init__()
+        self.parent_window = parent_window
+        self._worker = None
+        self.build()
+
+    def build(self):
+        lay = QVBoxLayout(self)
+        lay.setSpacing(12)
+        lay.setContentsMargins(18, 18, 18, 18)
+
+        title = QLabel("LUCKY DRAW")
+        title.setProperty("heading", True)
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(title)
+
+        info = QLabel(
+            "Draws 10 distinct winning coupon numbers from all sold coupons. "
+            "Each winner gets one prize (1st-10th). Results are saved to the "
+            "workbook and cannot be re-run until cleared."
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet(f"color:{GREY};")
+        lay.addWidget(info)
+
+        self.status_label = QLabel("Checking draw status...")
+        self.status_label.setStyleSheet(
+            f"background:{WHITE}; border:2px solid {GOLD}; border-radius:6px; "
+            f"padding:10px; color:{MAROON}; font-weight:bold;"
+        )
+        self.status_label.setWordWrap(True)
+        lay.addWidget(self.status_label)
+
+        btn_row = QHBoxLayout()
+        self.draw_btn = QPushButton("Conduct Draw")
+        self.draw_btn.setMinimumHeight(46)
+        self.draw_btn.clicked.connect(self.conduct_draw)
+        btn_row.addWidget(self.draw_btn)
+        self.clear_btn = QPushButton("Clear Results")
+        self.clear_btn.setProperty("flat", True)
+        self.clear_btn.setMinimumHeight(46)
+        self.clear_btn.clicked.connect(self.clear_results)
+        self.clear_btn.setEnabled(False)
+        btn_row.addWidget(self.clear_btn)
+        refresh_btn = QPushButton("Refresh")
+        refresh_btn.setProperty("flat", True)
+        refresh_btn.clicked.connect(self.load_results)
+        btn_row.addWidget(refresh_btn)
+        lay.addLayout(btn_row)
+
+        winners_title = QLabel("WINNERS")
+        winners_title.setProperty("heading", True)
+        lay.addWidget(winners_title)
+
+        self.table = QTableWidget(0, 7)
+        self.table.setHorizontalHeaderLabels([
+            "Prize", "Gift Item", "Coupon No", "Set Range", "Buyer", "Phone", "Type"
+        ])
+        self.table.setAlternatingRowColors(True)
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        hdr = self.table.horizontalHeader()
+        hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        for i in [2, 3, 4, 5, 6]:
+            hdr.setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
+        lay.addWidget(self.table, stretch=1)
+
+        self.msg_label = QLabel("")
+        self.msg_label.setWordWrap(True)
+        self.msg_label.setStyleSheet(f"color:{MAROON}; font-weight:bold;")
+        lay.addWidget(self.msg_label)
+
+    def on_show(self):
+        self.load_results()
+
+    def _start_worker(self, action):
+        if self._worker and self._worker.isRunning():
+            return
+        self._worker = DrawActionWorker(action)
+        self._worker.done.connect(self.on_worker_done)
+        self._worker.start()
+
+    def load_results(self):
+        self.status_label.setText("Checking draw status...")
+        self.draw_btn.setEnabled(False)
+        self.clear_btn.setEnabled(False)
+        self._start_worker("load")
+
+    def conduct_draw(self):
+        confirm = QMessageBox.question(
+            self, "Confirm Draw",
+            "Conduct the Lucky Draw now?\n"
+            "10 distinct winners will be randomly picked from sold coupons.\n"
+            "This cannot be undone."
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        self.draw_btn.setEnabled(False)
+        self.clear_btn.setEnabled(False)
+        self.msg_label.setText("Drawing 10 winners...")
+        self._start_worker("draw")
+
+    def clear_results(self):
+        confirm = QMessageBox.question(
+            self, "Confirm Clear",
+            "Clear the saved Lucky Draw results?\n"
+            "A new draw can then be conducted."
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        self.msg_label.setText("Clearing...")
+        self._start_worker("clear")
+
+    def on_worker_done(self, tag, success, msg, results):
+        self.msg_label.setText(msg if not success else "")
+        if not success:
+            QMessageBox.warning(self, "Problem", msg)
+            self.load_results()
+            return
+
+        if tag == "clear":
+            QMessageBox.information(self, "Cleared", msg)
+            self.load_results()
+            return
+
+        if tag == "draw":
+            QMessageBox.information(self, "Draw Complete", msg)
+
+        # tag == "draw" or "load" -> populate the table
+        if results:
+            drawn_at = results[0].get("drawn_at", "—") if isinstance(results[0], dict) else "—"
+            self.status_label.setText(
+                f"Draw completed on {drawn_at} - 10 winners saved."
+            )
+            self.draw_btn.setEnabled(False)
+            self.clear_btn.setEnabled(True)
+            self.table.setRowCount(len(results))
+            for i, r in enumerate(results):
+                coupon = r.get("coupon_no", "")
+                coupon_str = f"{int(coupon):04d}" if coupon != "" else "—"
+                set_range = r.get("set_range", "") or r.get("coupon_range_start")
+                if not set_range and r.get("coupon_range_start") is not None:
+                    s = r.get("coupon_range_start")
+                    e = r.get("coupon_range_end")
+                    set_range = f"{int(s):04d}-{int(e):04d}" if s != e else ""
+                else:
+                    set_range = r.get("set_range", "") or ""
+                vals = [
+                    str(r.get("prize", "")),
+                    str(r.get("gift", "")),
+                    coupon_str,
+                    str(set_range) if set_range else "—",
+                    str(r.get("buyer", "")),
+                    str(r.get("phone", "") or "—"),
+                    str(r.get("type", "")),
+                ]
+                for c, v in enumerate(vals):
+                    self.table.setItem(i, c, QTableWidgetItem(v))
+            self.table.resizeColumnsToContents()
+        else:
+            self.status_label.setText(
+                "No draw conducted yet. Click Conduct Draw to pick 10 winners."
+            )
+            self.draw_btn.setEnabled(True)
+            self.clear_btn.setEnabled(False)
+            self.table.setRowCount(0)
+
+
 # ============================================================
 # MAIN WINDOW
 # ============================================================
@@ -1325,12 +1529,14 @@ class MainWindow(QMainWindow):
         self.sales = SalesTab(self)
         self.manage = ManageTab(self)
         self.gaps = GapsTab(self)
+        self.lucky_draw = LuckyDrawTab(self)
         self.tabs.addTab(self.dashboard, "Dashboard")
         self.tabs.addTab(self.new_sale, "New Sale")
         self.tabs.addTab(self.physical, "Physical Sets")
         self.tabs.addTab(self.sales, "Sales")
         self.tabs.addTab(self.manage, "Manage")
         self.tabs.addTab(self.gaps, "Gaps")
+        self.tabs.addTab(self.lucky_draw, "Lucky Draw")
         self.tabs.currentChanged.connect(self.on_tab_changed)
         outer.addWidget(self.tabs)
 
@@ -1366,7 +1572,9 @@ class MainWindow(QMainWindow):
 
     def on_tab_changed(self, idx):
         widget = self.tabs.widget(idx)
-        if hasattr(widget, "refresh"):
+        if widget is self.lucky_draw:
+            self.lucky_draw.on_show()
+        elif hasattr(widget, "refresh"):
             widget.refresh()
 
     def request_refresh(self):

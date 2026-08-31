@@ -47,6 +47,8 @@ OUTPUT:
     coupon_sales.xlsx        (sales tracker, auto-created)
 """
 
+import os
+import random
 from datetime import datetime
 from pathlib import Path
 import shutil
@@ -164,7 +166,7 @@ HEIGHT = 2140
 DRAW_DATE = "06 SEPTEMBER 2026"
 DRAW_DAY = "SUNDAY"
 DRAW_LINE = f"{DRAW_DAY}, {DRAW_DATE}"
-VENUE = "Golden Star Banquet (Petals Hall), Swarn Jayanti Park (Japanese Park)"
+VENUE = "Golden Star Banquet (Petals Hall), Swarn Jayanti Park (Japanese Park), Rohini, Sector-10"
 WEBSITE = "www.jaibhadra.org"
 
 
@@ -980,7 +982,7 @@ def draw_date_box(draw):
     draw.rounded_rectangle(date_bar, radius=14, fill=WHITE, outline=GOLD, width=3)
     draw.rounded_rectangle((110, 725, WIDTH - 110, 905), radius=10, outline=GOLD_LINE, width=1)
 
-    festival_line = "Bhagwan Shree Balbhadra Jayanti & Bhagwan Shree Sahastrajun Pujnotsaw"
+    festival_line = "Bhagwan Shree Balbhadra Jayanti & Bhagwan Shree Sahastrarjun Pujonotsav"
     fest_font = fit_font(draw, festival_line, WIDTH - 240 - 40, 28, bold=True)
     draw_center(draw, festival_line, (120, 735, WIDTH - 120, 775), fest_font, MAROON)
 
@@ -1610,7 +1612,7 @@ def _row_donation(start, end, stype):
     return qty * PRICE_PER_COUPON
 
 
-def ensure_sales_file():
+def _xlsx_ensure_sales_file():
     """Create coupon_sales.xlsx with headers if it does not exist.
     Migrates older files (without the 'Type' column) by adding it and
     backfilling existing rows with 'SALE'.
@@ -1790,7 +1792,7 @@ def _load_sales_workbook(read_only=False):
         )
 
 
-def get_sold_ranges():
+def _xlsx_get_sold_ranges():
     """Return a list of (start, end) tuples already sold, read from the
     cached sales rows (reloaded from Excel only when the file changed)."""
     if not SALES_FILE.exists():
@@ -1813,7 +1815,7 @@ def get_sold_ranges():
     return ranges
 
 
-def is_already_sold(start, end):
+def _xlsx_is_already_sold(start, end):
     """Return the (start, end) of an overlapping sold range, or None if free.
     Raises RuntimeError if the Excel file is locked."""
     for s, e in get_sold_ranges():
@@ -1822,8 +1824,8 @@ def is_already_sold(start, end):
     return None
 
 
-def record_sale(name, phone, address, start, end, sale_type="SALE",
-                 set_size=None, amount=None):
+def _xlsx_record_sale(name, phone, address, start, end, sale_type="SALE",
+                  set_size=None, amount=None):
     """Append a sale row to coupon_sales.xlsx.
 
     For physical sets, pass sale_type='PHYSICAL' and leave name/phone/address
@@ -1836,7 +1838,7 @@ def record_sale(name, phone, address, start, end, sale_type="SALE",
     physical set).
 
     Raises RuntimeError if the Excel file is locked."""
-    ensure_sales_file()
+    _xlsx_ensure_sales_file()
 
     wb = _load_sales_workbook()
     ws = wb.active
@@ -1875,7 +1877,7 @@ def record_sale(name, phone, address, start, end, sale_type="SALE",
         _invalidate_sales_cache()
 
 
-def list_sales(print_it=True):
+def _xlsx_list_sales(print_it=True):
     """Print all sales rows as a formatted table.
     Returns the list of rows (excluding header). Raises RuntimeError if locked.
 
@@ -1914,12 +1916,12 @@ def list_sales(print_it=True):
     return rows
 
 
-def delete_sale(sno, delete_png=False):
+def _xlsx_delete_sale(sno, delete_png=False):
     """Delete the sale row with the given S.No and renumber remaining rows.
     If delete_png is True, also remove the corresponding PNG file.
     Returns True if a row was deleted, False if S.No was not found.
     Raises RuntimeError if the Excel file is locked."""
-    ensure_sales_file()
+    _xlsx_ensure_sales_file()
     wb = _load_sales_workbook()
     ws = wb.active
 
@@ -2165,12 +2167,12 @@ def prompt_delete():
     return True
 
 
-def delete_all_sales(delete_pngs=False):
+def _xlsx_delete_all_sales(delete_pngs=False):
     """Delete every sale row from the Excel file (keep the header).
     If delete_pngs is True, also delete all generated PNG files.
     Returns the number of rows deleted.
     Raises RuntimeError if the Excel file is locked."""
-    ensure_sales_file()
+    _xlsx_ensure_sales_file()
     wb = _load_sales_workbook()
     ws = wb.active
 
@@ -2502,13 +2504,13 @@ def prompt_delete_physical():
     return True
 
 
-def delete_all_physical(delete_pngs=False):
+def _xlsx_delete_all_physical(delete_pngs=False):
     """Delete every PHYSICAL row from the Excel file, keeping SALE rows.
 
     If delete_pngs is True, also remove the PNG files that correspond to the
     deleted physical sets. Returns the number of physical rows deleted.
     Raises RuntimeError if the Excel file is locked."""
-    ensure_sales_file()
+    _xlsx_ensure_sales_file()
     wb = _load_sales_workbook()
     ws = wb.active
 
@@ -2573,14 +2575,14 @@ def delete_all_physical(delete_pngs=False):
     return len(rows_to_delete)
 
 
-def delete_physical_by_range(rng_start, rng_end, delete_pngs=False):
+def _xlsx_delete_physical_by_range(rng_start, rng_end, delete_pngs=False):
     """Delete every PHYSICAL row whose coupon range falls entirely within
     [rng_start, rng_end]. Normal SALE rows are left untouched.
 
     If delete_pngs is True, also remove the corresponding PNG files.
     Returns the number of physical rows deleted.
     Raises RuntimeError if the Excel file is locked."""
-    ensure_sales_file()
+    _xlsx_ensure_sales_file()
     wb = _load_sales_workbook()
     ws = wb.active
 
@@ -2647,6 +2649,780 @@ def delete_physical_by_range(rng_start, rng_end, delete_pngs=False):
             print(f"Deleted {removed} physical-set PNG file(s) from {OUTPUT_DIR.name}.")
 
     return len(rows_to_delete)
+
+
+# ============================================================
+# LUCKY DRAW - Pick 10 Winners
+# ============================================================
+
+DRAW_SHEET = "Lucky Draw"
+DRAW_HEADERS = ["Prize", "Gift Item", "Coupon No", "Set Range", "Buyer", "Phone", "Type", "Drawn At"]
+
+
+def get_sold_coupon_numbers():
+    """Return a sorted list of every individual coupon number that has been
+    sold (union of all start-end ranges in the Excel tracker, both SALE and
+    PHYSICAL rows).  Raises RuntimeError if the Excel file is locked."""
+    ranges = get_sold_ranges()
+    if not ranges:
+        return []
+    numbers = set()
+    for s, e in ranges:
+        for n in range(s, e + 1):
+            numbers.add(n)
+    return sorted(numbers)
+
+
+def _xlsx_get_sold_sale_rows():
+    """Return a list of dicts, one per sale row with a valid start-end range,
+    each carrying the row tuple and its (start, end) coupon span.  This is
+    the pool the Lucky Draw samples from so that a single buyer / physical
+    set can win AT MOST ONE prize, regardless of how many coupons are in
+    that row.
+
+    Each dict: {"row": <tuple>, "start": int, "end": int}
+    Raises RuntimeError if the Excel file is locked."""
+    rows = _get_sales_rows()
+    entries = []
+    for r in rows:
+        if len(r) < 6:
+            continue
+        try:
+            s = int(r[4])
+            e = int(r[5])
+        except (ValueError, TypeError):
+            continue
+        if s <= e:
+            entries.append({"row": r, "start": s, "end": e})
+    return entries
+
+
+def _sale_row_for_coupon(rows, coupon_no):
+    """Find the sale row whose [start, end] range contains coupon_no.
+    Returns the row tuple, or None."""
+    for r in rows:
+        if len(r) < 6:
+            continue
+        try:
+            s = int(r[4])
+            e = int(r[5])
+        except (ValueError, TypeError):
+            continue
+        if s <= coupon_no <= e:
+            return r
+    return None
+
+
+def _xlsx_has_draw_results():
+    """Return True if a 'Lucky Draw' sheet with results exists in the
+    workbook.  Raises RuntimeError if the Excel file is locked."""
+    if not SALES_FILE.exists():
+        return False
+    wb = _load_sales_workbook(read_only=True)
+    try:
+        names = wb.sheetnames
+        if DRAW_SHEET not in names:
+            return False
+        ws = wb[DRAW_SHEET]
+        rows = list(ws.iter_rows(min_row=2, values_only=True))
+        rows = [r for r in rows if any(c is not None for c in r)]
+        return len(rows) > 0
+    finally:
+        wb.close()
+        tmp = getattr(wb, "_jbf_tmp_path", None)
+        if tmp:
+            try:
+                Path(tmp).unlink(missing_ok=True)
+            except Exception:
+                pass
+
+
+def _xlsx_get_draw_results():
+    """Return the saved draw results as a list of dicts, or None if no
+    'Lucky Draw' sheet exists yet.  Raises RuntimeError if locked."""
+    if not SALES_FILE.exists():
+        return None
+    wb = _load_sales_workbook(read_only=True)
+    try:
+        if DRAW_SHEET not in wb.sheetnames:
+            return None
+        ws = wb[DRAW_SHEET]
+        rows = list(ws.iter_rows(min_row=2, values_only=True))
+        rows = [r for r in rows if any(c is not None for c in r)]
+        out = []
+        for r in rows:
+            prize = r[0] if len(r) > 0 else ""
+            gift = r[1] if len(r) > 1 else ""
+            coupon = r[2] if len(r) > 2 else ""
+            set_range = r[3] if len(r) > 3 else ""
+            buyer = r[4] if len(r) > 4 else ""
+            phone = r[5] if len(r) > 5 else ""
+            stype = r[6] if len(r) > 6 else ""
+            drawn_at = r[7] if len(r) > 7 else ""
+            # Reconstruct a friendly coupon display string.
+            try:
+                cnum = int(coupon)
+                coupon_display = f"{cnum:04d}" + (
+                    f" (set {set_range})" if set_range else ""
+                )
+            except (ValueError, TypeError):
+                coupon_display = str(coupon) if coupon != "" else "—"
+            out.append({
+                "prize": prize,
+                "gift": gift,
+                "coupon_no": coupon,
+                "coupon_display": coupon_display,
+                "set_range": set_range or "",
+                "buyer": buyer,
+                "phone": phone,
+                "type": stype,
+                "drawn_at": drawn_at,
+            })
+        return out if out else None
+    finally:
+        wb.close()
+        tmp = getattr(wb, "_jbf_tmp_path", None)
+        if tmp:
+            try:
+                Path(tmp).unlink(missing_ok=True)
+            except Exception:
+                pass
+
+
+def _xlsx_draw_winners():
+    """Pick 10 distinct winning sale rows from the sold pool (so that a
+    single buyer / physical set can win AT MOST ONE prize), pick one random
+    coupon number from each winning row's range, map each to its prize,
+    save the results to a 'Lucky Draw' sheet in coupon_sales.xlsx, and
+    return the list of result dicts.
+
+    Raises RuntimeError if the Excel file is locked or if draw results
+    already exist (call clear_draw_results() first)."""
+    _xlsx_ensure_sales_file()
+
+    if _xlsx_has_draw_results():
+        raise RuntimeError(
+            "Lucky Draw results already exist. Clear them first before "
+            "conducting a new draw."
+        )
+
+    entries = _xlsx_get_sold_sale_rows()
+    if len(entries) < 10:
+        raise RuntimeError(
+            f"Not enough sold entries (buyers/sets) to draw 10 winners "
+            f"(have {len(entries)}, need 10)."
+        )
+
+    # Sample 10 distinct sale rows — one prize per row, so no buyer/set
+    # can win two prizes.
+    winning_entries = random.sample(entries, 10)
+    drawn_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    results = []
+    for i, entry in enumerate(winning_entries):
+        prize_label, gift_text = MAIN_PRIZES[i]
+        row = entry["row"]
+        s, e = entry["start"], entry["end"]
+        # Pick one random coupon number from this row's range to display as
+        # the winning coupon (for a single-coupon sale this is just that one
+        # number; for a set of 10 it is the one drawn coupon within the set).
+        winning_coupon = random.randint(s, e)
+        buyer = row[1] if len(row) > 1 else None
+        phone = row[2] if len(row) > 2 else None
+        stype = row[8] if len(row) >= 9 else "SALE"
+        buyer_disp = buyer if buyer else "<PHYSICAL>"
+        # Show the coupon range for sets so the result is meaningful even
+        # though only one number in the set is the "winning" number.
+        if s != e:
+            coupon_display = f"{winning_coupon:04d} (set {s:04d}-{e:04d})"
+        else:
+            coupon_display = f"{winning_coupon:04d}"
+        results.append({
+            "prize": prize_label,
+            "gift": gift_text,
+            "coupon_no": winning_coupon,
+            "coupon_range_start": s,
+            "coupon_range_end": e,
+            "coupon_display": coupon_display,
+            "buyer": buyer_disp,
+            "phone": phone or "",
+            "type": stype,
+            "drawn_at": drawn_at,
+        })
+
+    _xlsx_save_draw_results(results)
+    return results
+
+
+def _xlsx_save_draw_results(results):
+    """Write the results list to a 'Lucky Draw' sheet in coupon_sales.xlsx.
+    Replaces any existing sheet of that name.  Raises RuntimeError if the
+    Excel file is locked."""
+    wb = _load_sales_workbook()
+    try:
+        if DRAW_SHEET in wb.sheetnames:
+            del wb[DRAW_SHEET]
+        ws = wb.create_sheet(title=DRAW_SHEET)
+        ws.append(DRAW_HEADERS)
+        for col_idx in range(1, len(DRAW_HEADERS) + 1):
+            ws.cell(row=1, column=col_idx).font = openpyxl.styles.Font(bold=True)
+        for r in results:
+            s = r.get("coupon_range_start")
+            e = r.get("coupon_range_end")
+            set_range = (f"{s:04d}-{e:04d}" if s is not None and e is not None
+                         and s != e else "")
+            ws.append([
+                r["prize"], r["gift"], r["coupon_no"],
+                set_range,
+                r["buyer"], r["phone"], r["type"], r["drawn_at"],
+            ])
+        try:
+            wb.save(SALES_FILE)
+        except PermissionError:
+            raise RuntimeError(
+                f"Cannot save '{SALES_FILE.name}'. Please CLOSE it in "
+                f"Microsoft Excel / OneDrive and try again."
+            )
+    finally:
+        wb.close()
+        _invalidate_sales_cache()
+
+
+def _xlsx_clear_draw_results():
+    """Delete the 'Lucky Draw' sheet from coupon_sales.xlsx so a new draw
+    can be conducted.  Returns True if a sheet was removed, False if there
+    was nothing to clear.  Raises RuntimeError if the Excel file is locked."""
+    _xlsx_ensure_sales_file()
+    wb = _load_sales_workbook()
+    try:
+        if DRAW_SHEET not in wb.sheetnames:
+            wb.close()
+            return False
+        del wb[DRAW_SHEET]
+        try:
+            wb.save(SALES_FILE)
+        except PermissionError:
+            raise RuntimeError(
+                f"Cannot save '{SALES_FILE.name}'. Please CLOSE it in "
+                f"Microsoft Excel / OneDrive and try again."
+            )
+    finally:
+        wb.close()
+        _invalidate_sales_cache()
+    return True
+
+
+# ============================================================
+# POSTGRES BACKEND (cloud mode)
+# Active when DATABASE_URL env var is set.  Mirrors the Excel
+# functions above so the rest of the app (app.py, server.py) can
+# call the same public names regardless of storage backend.
+# ============================================================
+
+_USE_POSTGRES = bool(os.environ.get("DATABASE_URL"))
+_pg_pool = None
+
+
+def _pg_get_pool():
+    """Return a shared psycopg2 connection pool (created lazily)."""
+    global _pg_pool
+    if _pg_pool is None:
+        import psycopg2
+        from psycopg2 import pool
+        _pg_pool = pool.ThreadedConnectionPool(
+            1, 5, os.environ["DATABASE_URL"]
+        )
+    return _pg_pool
+
+
+def _pg_conn():
+    """Get a connection from the pool.  Always commit/rollback and putconn."""
+    return _pg_get_pool().getconn()
+
+
+def _pg_release(conn, ok=True):
+    _pg_get_pool().putconn(conn, close=not ok)
+
+
+def init_db():
+    """Create the sales + draw_results tables if they don't exist.
+    Safe to call on every startup."""
+    if not _USE_POSTGRES:
+        return
+    conn = _pg_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS sales (
+                    id          SERIAL PRIMARY KEY,
+                    sno         INTEGER NOT NULL,
+                    name        TEXT,
+                    phone       TEXT,
+                    address     TEXT,
+                    start_no    INTEGER NOT NULL,
+                    end_no      INTEGER NOT NULL,
+                    qty         INTEGER,
+                    date_sold   TEXT,
+                    sale_type   TEXT DEFAULT 'SALE',
+                    set_size    INTEGER,
+                    amount      INTEGER
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS draw_results (
+                    id          SERIAL PRIMARY KEY,
+                    prize       TEXT,
+                    gift        TEXT,
+                    coupon_no   INTEGER,
+                    range_start INTEGER,
+                    range_end   INTEGER,
+                    buyer       TEXT,
+                    phone       TEXT,
+                    sale_type   TEXT,
+                    drawn_at    TEXT
+                )
+            """)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        _pg_release(conn)
+
+
+def _pg_ensure():
+    """Make sure tables exist (called once per process)."""
+    if _USE_POSTGRES:
+        init_db()
+
+
+# ---- PG: sales CRUD ----
+
+def _pg_list_sales(print_it=True):
+    """Return sales rows as tuples matching the Excel row shape:
+    (sno, name, phone, address, start, end, qty, date, type, set_size, amount)."""
+    _pg_ensure()
+    conn = _pg_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT sno, name, phone, address, start_no, end_no,
+                       qty, date_sold, sale_type, set_size, amount
+                FROM sales ORDER BY sno
+            """)
+            rows = cur.fetchall()
+        # Normalize None -> "" for compatibility with Excel-mode callers.
+        rows = [tuple("" if c is None else c for c in r) for r in rows]
+    finally:
+        _pg_release(conn)
+
+    if print_it:
+        print(f"({len(rows)} sales in database)")
+    return rows
+
+
+def _pg_get_sold_ranges():
+    """Return [(start, end), ...] from the sales table."""
+    _pg_ensure()
+    conn = _pg_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT start_no, end_no FROM sales")
+            rows = cur.fetchall()
+    finally:
+        _pg_release(conn)
+    return [(int(s), int(e)) for s, e in rows]
+
+
+def _pg_is_already_sold(start, end):
+    """Return (s, e) of an overlapping sold range, or None."""
+    for s, e in _pg_get_sold_ranges():
+        if start <= e and end >= s:
+            return (s, e)
+    return None
+
+
+def _pg_record_sale(name, phone, address, start, end, sale_type="SALE",
+                    set_size=None, amount=None):
+    """Insert a sale row.  Computes sno, qty, date if not given."""
+    _pg_ensure()
+    qty = end - start + 1
+    date_sold = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    if set_size is None:
+        set_size = qty if sale_type == "PHYSICAL" else None
+    if amount is None:
+        if sale_type == "PHYSICAL":
+            amount = price_for_set_size(qty)
+        else:
+            amount = qty * PRICE_PER_COUPON
+
+    conn = _pg_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COALESCE(MAX(sno), 0) + 1 FROM sales")
+            next_sno = cur.fetchone()[0]
+            cur.execute("""
+                INSERT INTO sales
+                    (sno, name, phone, address, start_no, end_no, qty,
+                     date_sold, sale_type, set_size, amount)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (next_sno, name, phone, address, start, end, qty,
+                  date_sold, sale_type, set_size, amount))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        _pg_release(conn)
+
+
+def _pg_delete_sale(sno, delete_png=False):
+    """Delete the sale with the given sno and renumber remaining rows.
+    delete_png is ignored in Postgres mode (no PNG files on cloud)."""
+    _pg_ensure()
+    conn = _pg_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM sales WHERE sno = %s", (sno,))
+            if cur.fetchone() is None:
+                conn.rollback()
+                return False
+            cur.execute("DELETE FROM sales WHERE sno = %s", (sno,))
+            # Renumber remaining rows sequentially.
+            cur.execute("SELECT id FROM sales ORDER BY sno")
+            ids = [r[0] for r in cur.fetchall()]
+            for new_sno, rid in enumerate(ids, start=1):
+                cur.execute("UPDATE sales SET sno = %s WHERE id = %s",
+                            (new_sno, rid))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        _pg_release(conn)
+    return True
+
+
+def _pg_delete_all_sales(delete_pngs=False):
+    """Delete every sale row."""
+    _pg_ensure()
+    conn = _pg_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM sales")
+            count = cur.fetchone()[0]
+            cur.execute("DELETE FROM sales")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        _pg_release(conn)
+    return count
+
+
+def _pg_delete_all_physical(delete_pngs=False):
+    """Delete every PHYSICAL row, renumber remaining."""
+    _pg_ensure()
+    conn = _pg_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM sales WHERE sale_type = 'PHYSICAL'")
+            count = cur.fetchone()[0]
+            cur.execute("DELETE FROM sales WHERE sale_type = 'PHYSICAL'")
+            # Renumber remaining SALE rows.
+            cur.execute("SELECT id FROM sales ORDER BY sno")
+            ids = [r[0] for r in cur.fetchall()]
+            for new_sno, rid in enumerate(ids, start=1):
+                cur.execute("UPDATE sales SET sno = %s WHERE id = %s",
+                            (new_sno, rid))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        _pg_release(conn)
+    return count
+
+
+def _pg_delete_physical_by_range(rng_start, rng_end, delete_pngs=False):
+    """Delete PHYSICAL rows whose range falls fully within [rng_start, rng_end]."""
+    _pg_ensure()
+    conn = _pg_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT COUNT(*) FROM sales
+                WHERE sale_type = 'PHYSICAL'
+                  AND start_no >= %s AND end_no <= %s
+            """, (rng_start, rng_end))
+            count = cur.fetchone()[0]
+            cur.execute("""
+                DELETE FROM sales
+                WHERE sale_type = 'PHYSICAL'
+                  AND start_no >= %s AND end_no <= %s
+            """, (rng_start, rng_end))
+            # Renumber remaining.
+            cur.execute("SELECT id FROM sales ORDER BY sno")
+            ids = [r[0] for r in cur.fetchall()]
+            for new_sno, rid in enumerate(ids, start=1):
+                cur.execute("UPDATE sales SET sno = %s WHERE id = %s",
+                            (new_sno, rid))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        _pg_release(conn)
+    return count
+
+
+# ---- PG: draw results ----
+
+def _pg_has_draw_results():
+    """Return True if the draw_results table has any rows."""
+    _pg_ensure()
+    conn = _pg_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT EXISTS (SELECT 1 FROM draw_results)")
+            return cur.fetchone()[0]
+    finally:
+        _pg_release(conn)
+
+
+def _pg_get_draw_results():
+    """Return draw results as a list of dicts, or None if empty."""
+    _pg_ensure()
+    conn = _pg_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT prize, gift, coupon_no, range_start, range_end,
+                       buyer, phone, sale_type, drawn_at
+                FROM draw_results ORDER BY id
+            """)
+            rows = cur.fetchall()
+    finally:
+        _pg_release(conn)
+    if not rows:
+        return None
+    out = []
+    for prize, gift, coupon_no, rs, re_, buyer, phone, stype, drawn_at in rows:
+        set_range = (f"{int(rs):04d}-{int(re_):04d}"
+                     if rs is not None and re_ is not None and rs != re_ else "")
+        coupon_display = (f"{int(coupon_no):04d}" + (
+            f" (set {set_range})" if set_range else "")
+            if coupon_no is not None else "—")
+        out.append({
+            "prize": prize,
+            "gift": gift,
+            "coupon_no": coupon_no,
+            "coupon_display": coupon_display,
+            "set_range": set_range,
+            "buyer": buyer,
+            "phone": phone or "",
+            "type": stype,
+            "drawn_at": drawn_at,
+        })
+    return out
+
+
+def _pg_get_sold_sale_rows():
+    """Return list of dicts: {"row": <tuple>, "start": int, "end": int}.
+    Mirrors the Excel-mode _get_sold_sale_rows()."""
+    rows = _pg_list_sales(print_it=False)
+    entries = []
+    for r in rows:
+        try:
+            s = int(r[4])
+            e = int(r[5])
+        except (ValueError, TypeError):
+            continue
+        if s <= e:
+            entries.append({"row": r, "start": s, "end": e})
+    return entries
+
+
+def _pg_draw_winners():
+    """Pick 10 distinct winning sale rows, save to draw_results table."""
+    _pg_ensure()
+    if _pg_has_draw_results():
+        raise RuntimeError(
+            "Lucky Draw results already exist. Clear them first before "
+            "conducting a new draw."
+        )
+    entries = _pg_get_sold_sale_rows()
+    if len(entries) < 10:
+        raise RuntimeError(
+            f"Not enough sold entries (buyers/sets) to draw 10 winners "
+            f"(have {len(entries)}, need 10)."
+        )
+    winning_entries = random.sample(entries, 10)
+    drawn_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    results = []
+    for i, entry in enumerate(winning_entries):
+        prize_label, gift_text = MAIN_PRIZES[i]
+        row = entry["row"]
+        s, e = entry["start"], entry["end"]
+        winning_coupon = random.randint(s, e)
+        buyer = row[1] if len(row) > 1 and row[1] else None
+        phone = row[2] if len(row) > 2 and row[2] else None
+        stype = row[8] if len(row) >= 9 and row[8] else "SALE"
+        buyer_disp = buyer if buyer else "<PHYSICAL>"
+        set_range = (f"{s:04d}-{e:04d}" if s != e else "")
+        results.append({
+            "prize": prize_label,
+            "gift": gift_text,
+            "coupon_no": winning_coupon,
+            "coupon_range_start": s,
+            "coupon_range_end": e,
+            "coupon_display": (f"{winning_coupon:04d}" +
+                               (f" (set {set_range})" if set_range else "")),
+            "set_range": set_range,
+            "buyer": buyer_disp,
+            "phone": phone or "",
+            "type": stype,
+            "drawn_at": drawn_at,
+        })
+
+    # Persist to draw_results table.
+    conn = _pg_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM draw_results")  # safety: clear stale
+            for r in results:
+                cur.execute("""
+                    INSERT INTO draw_results
+                        (prize, gift, coupon_no, range_start, range_end,
+                         buyer, phone, sale_type, drawn_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (r["prize"], r["gift"], r["coupon_no"],
+                      r["coupon_range_start"], r["coupon_range_end"],
+                      r["buyer"], r["phone"], r["type"], r["drawn_at"]))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        _pg_release(conn)
+    return results
+
+
+def _pg_clear_draw_results():
+    """Delete all rows from draw_results."""
+    _pg_ensure()
+    conn = _pg_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM draw_results")
+            count = cur.fetchone()[0]
+            cur.execute("DELETE FROM draw_results")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        _pg_release(conn)
+    return count > 0
+
+
+# ============================================================
+# DISPATCHERS (public API — route to Excel or Postgres)
+# ============================================================
+
+def ensure_sales_file():
+    """Create/migrate the Excel file (Excel mode) or init DB (Postgres mode)."""
+    if _USE_POSTGRES:
+        _pg_ensure()
+        return
+    _xlsx_ensure_sales_file()
+
+
+def get_sold_ranges():
+    if _USE_POSTGRES:
+        return _pg_get_sold_ranges()
+    return _xlsx_get_sold_ranges()
+
+
+def is_already_sold(start, end):
+    if _USE_POSTGRES:
+        return _pg_is_already_sold(start, end)
+    return _xlsx_is_already_sold(start, end)
+
+
+def record_sale(name, phone, address, start, end, sale_type="SALE",
+                set_size=None, amount=None):
+    if _USE_POSTGRES:
+        return _pg_record_sale(name, phone, address, start, end,
+                               sale_type=sale_type, set_size=set_size,
+                               amount=amount)
+    return _xlsx_record_sale(name, phone, address, start, end,
+                             sale_type=sale_type, set_size=set_size,
+                             amount=amount)
+
+
+def list_sales(print_it=True):
+    if _USE_POSTGRES:
+        return _pg_list_sales(print_it=print_it)
+    return _xlsx_list_sales(print_it=print_it)
+
+
+def delete_sale(sno, delete_png=False):
+    if _USE_POSTGRES:
+        return _pg_delete_sale(sno, delete_png=delete_png)
+    return _xlsx_delete_sale(sno, delete_png=delete_png)
+
+
+def delete_all_sales(delete_pngs=False):
+    if _USE_POSTGRES:
+        return _pg_delete_all_sales(delete_pngs=delete_pngs)
+    return _xlsx_delete_all_sales(delete_pngs=delete_pngs)
+
+
+def delete_all_physical(delete_pngs=False):
+    if _USE_POSTGRES:
+        return _pg_delete_all_physical(delete_pngs=delete_pngs)
+    return _xlsx_delete_all_physical(delete_pngs=delete_pngs)
+
+
+def delete_physical_by_range(rng_start, rng_end, delete_pngs=False):
+    if _USE_POSTGRES:
+        return _pg_delete_physical_by_range(rng_start, rng_end,
+                                            delete_pngs=delete_pngs)
+    return _xlsx_delete_physical_by_range(rng_start, rng_end,
+                                          delete_pngs=delete_pngs)
+
+
+def has_draw_results():
+    if _USE_POSTGRES:
+        return _pg_has_draw_results()
+    return _xlsx_has_draw_results()
+
+
+def get_draw_results():
+    if _USE_POSTGRES:
+        return _pg_get_draw_results()
+    return _xlsx_get_draw_results()
+
+
+def _get_sold_sale_rows():
+    if _USE_POSTGRES:
+        return _pg_get_sold_sale_rows()
+    return _xlsx_get_sold_sale_rows()
+
+
+def draw_winners():
+    if _USE_POSTGRES:
+        return _pg_draw_winners()
+    return _xlsx_draw_winners()
+
+
+def clear_draw_results():
+    if _USE_POSTGRES:
+        return _pg_clear_draw_results()
+    return _xlsx_clear_draw_results()
 
 
 def prompt_delete_physical_by_range():
@@ -2857,6 +3633,133 @@ def view_gaps():
     return True
 
 
+def prompt_lucky_draw():
+    """Conduct the Lucky Draw - pick 10 distinct winners from sold coupons
+    and save the results to the Excel workbook.  Returns True to continue
+    the menu loop."""
+    print()
+    print("=" * 60)
+    print("LUCKY DRAW - PICK 10 WINNERS")
+    print("=" * 60)
+
+    try:
+        already = has_draw_results()
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}")
+        return True
+
+    if already:
+        print("Draw results already exist. Clear them first (menu option 13).")
+        return True
+
+    try:
+        pool = _get_sold_sale_rows()
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}")
+        return True
+
+    print(f"Total sold entries (buyers/sets) eligible: {len(pool)}")
+    if len(pool) < 10:
+        print(f"ERROR: Need at least 10 sold entries (buyers/sets) to draw 10 winners.")
+        return True
+
+    print()
+    print("Rules:")
+    print("  - 10 distinct winning entries are drawn.")
+    print("  - One entry = one buyer or one physical set.")
+    print("  - No buyer/set can win more than one prize.")
+    print("  - A random coupon from the winning set's range is shown.")
+    print()
+    print("10 prizes will be drawn:")
+    for i, (prize, gift) in enumerate(MAIN_PRIZES):
+        print(f"  {prize}: {gift}")
+    print()
+
+    confirm = ask("Conduct the draw now? This cannot be undone. (y/n): ")
+    if confirm is None or confirm.lower() not in ("y", "yes"):
+        print("Draw cancelled.")
+        return True
+
+    try:
+        results = draw_winners()
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}")
+        return True
+
+    print()
+    print("=" * 80)
+    print("LUCKY DRAW WINNERS")
+    print("=" * 80)
+    print(f"{'Prize':<14}{'Coupon':<10}{'Set Range':<14}{'Buyer':<22}{'Type':<10}")
+    print("-" * 80)
+    for r in results:
+        buyer_short = str(r["buyer"])[:20]
+        coupon_str = f"{int(r['coupon_no']):04d}"
+        s = r.get("coupon_range_start")
+        e = r.get("coupon_range_end")
+        set_range = f"{s:04d}-{e:04d}" if s is not None and e is not None and s != e else "-"
+        print(f"{r['prize']:<14}{coupon_str:<10}{set_range:<14}{buyer_short:<22}{r['type']:<10}")
+    print("-" * 80)
+    print(f"Draw conducted at: {results[0]['drawn_at']}")
+    print(f"Results saved to '{SALES_FILE.name}' (sheet: {DRAW_SHEET}).")
+    print()
+    return True
+
+
+def show_draw_results():
+    """Print the saved Lucky Draw results.  Returns True to continue the
+    menu loop."""
+    try:
+        results = get_draw_results()
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}")
+        return True
+
+    if not results:
+        print()
+        print("No Lucky Draw results yet. Conduct a draw first (menu option 11).")
+        return True
+
+    print()
+    print("=" * 90)
+    print("LUCKY DRAW RESULTS")
+    print("=" * 90)
+    print(f"Draw conducted at: {results[0]['drawn_at']}")
+    print("-" * 90)
+    print(f"{'Prize':<14}{'Gift':<34}{'Coupon':<10}{'Set Range':<14}{'Buyer':<20}{'Type'}")
+    print("-" * 90)
+    for r in results:
+        coupon_str = f"{int(r['coupon_no']):04d}"
+        set_range = str(r.get("set_range", "") or "")
+        set_range_disp = set_range if set_range else "-"
+        buyer_short = str(r["buyer"])[:18]
+        gift_short = str(r["gift"])[:32]
+        print(f"{r['prize']:<14}{gift_short:<34}{coupon_str:<10}{set_range_disp:<14}{buyer_short:<20}{r['type']}")
+    print("-" * 90)
+    print()
+    return True
+
+
+def prompt_clear_draw():
+    """Clear saved Lucky Draw results so a new draw can be conducted.
+    Returns True to continue the menu loop."""
+    print()
+    confirm = ask("Clear Lucky Draw results? A new draw can then be conducted. (y/n): ")
+    if confirm is None or confirm.lower() not in ("y", "yes"):
+        print("Clear cancelled.")
+        return True
+    try:
+        cleared = clear_draw_results()
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}")
+        return True
+    if cleared:
+        print("Lucky Draw results cleared. You can now conduct a new draw.")
+    else:
+        print("No Lucky Draw results to clear.")
+    return True
+
+
 def menu():
     """Main interactive menu loop."""
     while True:
@@ -2874,7 +3777,10 @@ def menu():
         print("  8. Delete ALL sales")
         print("  9. Last coupon sold")
         print(" 10. View gap numbers")
-        print(" 11. Exit")
+        print(" 11. Lucky Draw - Pick 10 Winners")
+        print(" 12. View Lucky Draw Results")
+        print(" 13. Clear Lucky Draw Results")
+        print(" 14. Exit")
         print("-" * 40)
 
         choice = ask("Choice: ")
@@ -2908,9 +3814,15 @@ def menu():
         elif choice == "10":
             view_gaps()
         elif choice == "11":
+            prompt_lucky_draw()
+        elif choice == "12":
+            show_draw_results()
+        elif choice == "13":
+            prompt_clear_draw()
+        elif choice == "14":
             break
         else:
-            print("Invalid choice. Enter 1 through 11.")
+            print("Invalid choice. Enter 1 through 14.")
 
 
 # ============================================================

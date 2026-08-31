@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: jbf-lucky-draw
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn server:app
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        sync: false
