@@ -28,7 +28,7 @@ app.secret_key = "jbf-lucky-draw-secret-key-change-me-2024"
 
 # Hardcoded admin credentials. Change these to suit your deployment.
 ADMIN_USER = "admin"
-ADMIN_PASS = "12qwaszx"
+ADMIN_PASS = "12qwasxz"
 
 
 # ------------------------------------------------------------------
