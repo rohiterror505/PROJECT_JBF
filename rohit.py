@@ -2823,6 +2823,108 @@ def _sale_row_for_coupon(rows, coupon_no):
     return None
 
 
+def _select_stratified_winners(sold_numbers, rows):
+    """Pick 10 winning coupon numbers from the sold pool, maximally spread
+    across the coupon range using stratified (band) sampling.
+
+    Each individual coupon is one ticket — so a buyer who holds 10 coupons
+    has 10x the odds of a buyer who holds 1, which is fair by spend.
+
+    To guarantee the 10 winners are far apart (prizes distributed across the
+    whole 0001-5000 span rather than clustering in one corner), the sorted
+    list of sold coupon numbers is split into 10 equal bands (strata) by
+    count, and one random sold coupon is drawn from each band.  If a band
+    ends up empty (fewer than 10 sold coupons total), winners fall back to
+    being drawn from the whole pool without replacement.
+
+    `rows` is the list of sale-row tuples (used to map each winning coupon
+    back to its buyer / phone / type for the results table).
+
+    Returns a list of result dicts (one per prize, in MAIN_PRIZES order),
+    each carrying: prize, gift, coupon_no, coupon_range_start,
+    coupon_range_end, coupon_display, set_range, buyer, phone, type,
+    drawn_at (filled in by the caller).  The caller is responsible for
+    setting drawn_at and persisting the results."""
+    n = len(sold_numbers)
+    if n < 10:
+        raise RuntimeError(
+            f"Not enough sold coupons to draw 10 winners "
+            f"(have {n} sold coupon numbers, need 10)."
+        )
+
+    # Build the sorted list of sold coupon numbers if not already sorted.
+    pool = sorted(sold_numbers)
+
+    # --- Stratified sampling: 10 equal bands by COUNT, one pick each ---
+    # Split pool into 10 strata of (almost) equal size.  For i in 0..9,
+    # band i covers pool[i*band : (i+1)*band].  This guarantees the 10
+    # winners are spread across the full sold range — band 0 is the lowest
+    # coupon numbers, band 9 the highest — while still being random within
+    # each band.
+    band = n // 10
+    winners = []
+    used = set()
+    for i in range(10):
+        lo = i * band
+        # Last band picks up the remainder so all sold numbers are covered.
+        hi = (i + 1) * band if i < 9 else n
+        # Choose a random coupon from this band that hasn't already been
+        # picked (extremely unlikely with 10 bands, but safe).
+        candidates = [c for c in pool[lo:hi] if c not in used]
+        if not candidates:
+            # Fallback: pick from the whole remaining pool.
+            candidates = [c for c in pool if c not in used]
+        pick = random.choice(candidates)
+        used.add(pick)
+        winners.append(pick)
+
+    # Sort winners by coupon number so prize 1 (1st prize) goes to the
+    # lowest-band winner, prize 10 to the highest.  This makes the result
+    # table read top-to-bottom in coupon order, which looks deliberate and
+    # fair when printed.
+    winners.sort()
+
+    drawn_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    results = []
+    for i, coupon in enumerate(winners):
+        prize_label, gift_text = MAIN_PRIZES[i]
+        row = _sale_row_for_coupon(rows, coupon)
+        if row is None:
+            # Should not happen since `coupon` came from the sold pool,
+            # but guard anyway so a single bad row never crashes the draw.
+            s = e = coupon
+            buyer = None
+            phone = None
+            stype = "SALE"
+        else:
+            try:
+                s = int(row[4])
+                e = int(row[5])
+            except (ValueError, TypeError):
+                s = e = coupon
+            buyer = row[1] if len(row) > 1 and row[1] else None
+            phone = row[2] if len(row) > 2 and row[2] else None
+            stype = row[8] if len(row) >= 9 and row[8] else "SALE"
+        buyer_disp = buyer if buyer else "<PHYSICAL>"
+        set_range = (f"{s:04d}-{e:04d}" if s != e else "")
+        coupon_display = (f"{coupon:04d}" +
+                          (f" (set {set_range})" if set_range else ""))
+        results.append({
+            "prize": prize_label,
+            "gift": gift_text,
+            "coupon_no": coupon,
+            "coupon_range_start": s,
+            "coupon_range_end": e,
+            "coupon_display": coupon_display,
+            "set_range": set_range,
+            "buyer": buyer_disp,
+            "phone": phone or "",
+            "type": stype,
+            "drawn_at": drawn_at,
+        })
+    return results
+
+
 def _xlsx_has_draw_results():
     """Return True if a 'Lucky Draw' sheet with results exists in the
     workbook.  Raises RuntimeError if the Excel file is locked."""
@@ -2900,11 +3002,17 @@ def _xlsx_get_draw_results():
 
 
 def _xlsx_draw_winners():
-    """Pick 10 distinct winning sale rows from the sold pool (so that a
-    single buyer / physical set can win AT MOST ONE prize), pick one random
-    coupon number from each winning row's range, map each to its prize,
-    save the results to a 'Lucky Draw' sheet in coupon_sales.xlsx, and
-    return the list of result dicts.
+    """Conduct the Lucky Draw: pick 10 winning coupon numbers from the sold
+    pool, stratified across 10 equal bands so the winners are spread far
+    apart across the whole coupon range (maximum distribution of prizes).
+
+    Each individual coupon is one ticket — a buyer who holds 10 coupons has
+    10x the odds of a buyer who holds 1 (fair by spend).  Winners are
+    spread across the sold range by splitting the sorted sold numbers into
+    10 equal-count bands and drawing one random sold coupon from each band.
+
+    Saves the results to a 'Lucky Draw' sheet in coupon_sales.xlsx and
+    returns the list of result dicts.
 
     Raises RuntimeError if the Excel file is locked or if draw results
     already exist (call clear_draw_results() first)."""
@@ -2916,50 +3024,15 @@ def _xlsx_draw_winners():
             "conducting a new draw."
         )
 
-    entries = _xlsx_get_sold_sale_rows()
-    if len(entries) < 10:
+    sold_numbers = get_sold_coupon_numbers()
+    if len(sold_numbers) < 10:
         raise RuntimeError(
-            f"Not enough sold entries (buyers/sets) to draw 10 winners "
-            f"(have {len(entries)}, need 10)."
+            f"Not enough sold coupons to draw 10 winners "
+            f"(have {len(sold_numbers)} sold coupon numbers, need 10)."
         )
 
-    # Sample 10 distinct sale rows — one prize per row, so no buyer/set
-    # can win two prizes.
-    winning_entries = random.sample(entries, 10)
-    drawn_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    results = []
-    for i, entry in enumerate(winning_entries):
-        prize_label, gift_text = MAIN_PRIZES[i]
-        row = entry["row"]
-        s, e = entry["start"], entry["end"]
-        # Pick one random coupon number from this row's range to display as
-        # the winning coupon (for a single-coupon sale this is just that one
-        # number; for a set of 10 it is the one drawn coupon within the set).
-        winning_coupon = random.randint(s, e)
-        buyer = row[1] if len(row) > 1 else None
-        phone = row[2] if len(row) > 2 else None
-        stype = row[8] if len(row) >= 9 else "SALE"
-        buyer_disp = buyer if buyer else "<PHYSICAL>"
-        # Show the coupon range for sets so the result is meaningful even
-        # though only one number in the set is the "winning" number.
-        if s != e:
-            coupon_display = f"{winning_coupon:04d} (set {s:04d}-{e:04d})"
-        else:
-            coupon_display = f"{winning_coupon:04d}"
-        results.append({
-            "prize": prize_label,
-            "gift": gift_text,
-            "coupon_no": winning_coupon,
-            "coupon_range_start": s,
-            "coupon_range_end": e,
-            "coupon_display": coupon_display,
-            "buyer": buyer_disp,
-            "phone": phone or "",
-            "type": stype,
-            "drawn_at": drawn_at,
-        })
-
+    rows = _get_sales_rows()
+    results = _select_stratified_winners(sold_numbers, rows)
     _xlsx_save_draw_results(results)
     return results
 
@@ -3384,47 +3457,28 @@ def _pg_get_sold_sale_rows():
 
 
 def _pg_draw_winners():
-    """Pick 10 distinct winning sale rows, save to draw_results table."""
+    """Conduct the Lucky Draw (Postgres mode): pick 10 winning coupon
+    numbers from the sold pool, stratified across 10 equal bands so the
+    winners are spread far apart across the whole coupon range.  Each
+    individual coupon is one ticket (fair by spend — a 10-coupon buyer has
+    10x the odds of a 1-coupon buyer).  Saves results to the draw_results
+    table and returns them."""
     _pg_ensure()
     if _pg_has_draw_results():
         raise RuntimeError(
             "Lucky Draw results already exist. Clear them first before "
             "conducting a new draw."
         )
-    entries = _pg_get_sold_sale_rows()
-    if len(entries) < 10:
-        raise RuntimeError(
-            f"Not enough sold entries (buyers/sets) to draw 10 winners "
-            f"(have {len(entries)}, need 10)."
-        )
-    winning_entries = random.sample(entries, 10)
-    drawn_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    results = []
-    for i, entry in enumerate(winning_entries):
-        prize_label, gift_text = MAIN_PRIZES[i]
-        row = entry["row"]
-        s, e = entry["start"], entry["end"]
-        winning_coupon = random.randint(s, e)
-        buyer = row[1] if len(row) > 1 and row[1] else None
-        phone = row[2] if len(row) > 2 and row[2] else None
-        stype = row[8] if len(row) >= 9 and row[8] else "SALE"
-        buyer_disp = buyer if buyer else "<PHYSICAL>"
-        set_range = (f"{s:04d}-{e:04d}" if s != e else "")
-        results.append({
-            "prize": prize_label,
-            "gift": gift_text,
-            "coupon_no": winning_coupon,
-            "coupon_range_start": s,
-            "coupon_range_end": e,
-            "coupon_display": (f"{winning_coupon:04d}" +
-                               (f" (set {set_range})" if set_range else "")),
-            "set_range": set_range,
-            "buyer": buyer_disp,
-            "phone": phone or "",
-            "type": stype,
-            "drawn_at": drawn_at,
-        })
+    sold_numbers = get_sold_coupon_numbers()
+    if len(sold_numbers) < 10:
+        raise RuntimeError(
+            f"Not enough sold coupons to draw 10 winners "
+            f"(have {len(sold_numbers)} sold coupon numbers, need 10)."
+        )
+
+    rows = _pg_list_sales(print_it=False)
+    results = _select_stratified_winners(sold_numbers, rows)
 
     # Persist to draw_results table.
     conn = _pg_conn()
