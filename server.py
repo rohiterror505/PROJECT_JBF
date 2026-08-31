@@ -30,6 +30,9 @@ app.secret_key = "jbf-lucky-draw-secret-key-change-me-2024"
 ADMIN_USER = "admin"
 ADMIN_PASS = "12qwasxz"
 
+JOY_USER = "joy"
+JOY_PASS = "joy@12qwasxz"
+
 
 # ------------------------------------------------------------------
 # Helpers
@@ -144,7 +147,7 @@ def api_login():
     pw = data.get("password") or ""
     if not user or not pw:
         return _err("Please enter both username and password.")
-    if user == ADMIN_USER and pw == ADMIN_PASS:
+    if (user == ADMIN_USER and pw == ADMIN_PASS) or (user == JOY_USER and pw == JOY_PASS):
         session["user"] = user
         session.permanent = True
         return _ok({"redirect": "/", "message": "Login successful."})
