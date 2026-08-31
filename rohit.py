@@ -2824,18 +2824,18 @@ def _sale_row_for_coupon(rows, coupon_no):
 
 
 def _select_stratified_winners(sold_numbers, rows):
-    """Pick 10 winning coupon numbers from the sold pool, maximally spread
-    across the coupon range using stratified (band) sampling.
+    """Pick 10 winning coupon numbers from the sold pool by uniform random
+    sampling — completely fair, no pattern.
 
-    Each individual coupon is one ticket — so a buyer who holds 10 coupons
-    has 10x the odds of a buyer who holds 1, which is fair by spend.
-
-    To guarantee the 10 winners are far apart (prizes distributed across the
-    whole 0001-5000 span rather than clustering in one corner), the sorted
-    list of sold coupon numbers is split into 10 equal bands (strata) by
-    count, and one random sold coupon is drawn from each band.  If a band
-    ends up empty (fewer than 10 sold coupons total), winners fall back to
-    being drawn from the whole pool without replacement.
+    Each individual coupon is one ticket: every sold coupon has an exactly
+    equal chance of being drawn (10 / N where N is the number of sold
+    coupons, i.e. 10/5000 = 1/500 when all 5000 coupons are sold).  A buyer
+    who holds 10 coupons therefore has 10x the odds of a buyer who holds 1
+    — fair by spend.  There is NO banding, NO sorting, and NO spreading:
+    the 10 winners are drawn uniformly without replacement via
+    random.sample, and the prize order (1st prize, 2nd prize, ...) is the
+    random draw order — 1st prize is NOT forced onto the lowest coupon
+    number.
 
     `rows` is the list of sale-row tuples (used to map each winning coupon
     back to its buyer / phone / type for the results table).
@@ -2852,37 +2852,13 @@ def _select_stratified_winners(sold_numbers, rows):
             f"(have {n} sold coupon numbers, need 10)."
         )
 
-    # Build the sorted list of sold coupon numbers if not already sorted.
-    pool = sorted(sold_numbers)
-
-    # --- Stratified sampling: 10 equal bands by COUNT, one pick each ---
-    # Split pool into 10 strata of (almost) equal size.  For i in 0..9,
-    # band i covers pool[i*band : (i+1)*band].  This guarantees the 10
-    # winners are spread across the full sold range — band 0 is the lowest
-    # coupon numbers, band 9 the highest — while still being random within
-    # each band.
-    band = n // 10
-    winners = []
-    used = set()
-    for i in range(10):
-        lo = i * band
-        # Last band picks up the remainder so all sold numbers are covered.
-        hi = (i + 1) * band if i < 9 else n
-        # Choose a random coupon from this band that hasn't already been
-        # picked (extremely unlikely with 10 bands, but safe).
-        candidates = [c for c in pool[lo:hi] if c not in used]
-        if not candidates:
-            # Fallback: pick from the whole remaining pool.
-            candidates = [c for c in pool if c not in used]
-        pick = random.choice(candidates)
-        used.add(pick)
-        winners.append(pick)
-
-    # Sort winners by coupon number so prize 1 (1st prize) goes to the
-    # lowest-band winner, prize 10 to the highest.  This makes the result
-    # table read top-to-bottom in coupon order, which looks deliberate and
-    # fair when printed.
-    winners.sort()
+    # --- Uniform random sampling: 10 distinct winners, equal odds ---
+    # random.sample picks 10 distinct coupons uniformly without
+    # replacement, so every sold coupon has exactly the same probability of
+    # being chosen.  No banding, no sorting — completely fair and pattern-
+    # free.  The order returned by random.sample is already random, so the
+    # prize assignment (1st prize -> winners[0], etc.) is random too.
+    winners = random.sample(list(sold_numbers), 10)
 
     drawn_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     results = []
@@ -3002,14 +2978,14 @@ def _xlsx_get_draw_results():
 
 
 def _xlsx_draw_winners():
-    """Conduct the Lucky Draw: pick 10 winning coupon numbers from the sold
-    pool, stratified across 10 equal bands so the winners are spread far
-    apart across the whole coupon range (maximum distribution of prizes).
+    """Conduct the Lucky Draw: pick 10 winning coupon numbers uniformly at
+    random from the sold pool — completely fair, no pattern.
 
     Each individual coupon is one ticket — a buyer who holds 10 coupons has
-    10x the odds of a buyer who holds 1 (fair by spend).  Winners are
-    spread across the sold range by splitting the sorted sold numbers into
-    10 equal-count bands and drawing one random sold coupon from each band.
+    10x the odds of a buyer who holds 1 (fair by spend).  The 10 winners are
+    drawn with random.sample (uniform without replacement), so every sold
+    coupon has an exactly equal chance of winning and there is no banding
+    or sorting that would push the 1st prize to the lowest coupon number.
 
     Saves the results to a 'Lucky Draw' sheet in coupon_sales.xlsx and
     returns the list of result dicts.
@@ -3458,11 +3434,13 @@ def _pg_get_sold_sale_rows():
 
 def _pg_draw_winners():
     """Conduct the Lucky Draw (Postgres mode): pick 10 winning coupon
-    numbers from the sold pool, stratified across 10 equal bands so the
-    winners are spread far apart across the whole coupon range.  Each
-    individual coupon is one ticket (fair by spend — a 10-coupon buyer has
-    10x the odds of a 1-coupon buyer).  Saves results to the draw_results
-    table and returns them."""
+    numbers uniformly at random from the sold pool — completely fair, no
+    pattern.  Each individual coupon is one ticket (fair by spend — a
+    10-coupon buyer has 10x the odds of a 1-coupon buyer).  The 10 winners
+    are drawn with random.sample (uniform without replacement), so every
+    sold coupon has an exactly equal chance of winning and there is no
+    banding or sorting that would push the 1st prize to the lowest coupon
+    number.  Saves results to the draw_results table and returns them."""
     _pg_ensure()
     if _pg_has_draw_results():
         raise RuntimeError(
