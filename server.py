@@ -171,13 +171,17 @@ def api_state():
     try:
         rohit.ensure_sales_file()
         rows = rohit.list_sales(print_it=False)
-        ranges = rohit.get_sold_ranges()
     except RuntimeError as exc:
         return _err(str(exc), 500)
     except Exception as exc:
         return _err(str(exc), 500)
 
     sales = _rows_to_dicts(rows)
+
+    # Derive sold ranges from the rows we already fetched instead of making
+    # a second DB round-trip via get_sold_ranges().
+    ranges = [(s["start"], s["end"]) for s in sales
+              if s["start"] is not None and s["end"] is not None]
 
     # Summary stats (what the dashboard cards show).
     sale_count = sum(1 for s in sales if s["type"] == "SALE")
@@ -574,8 +578,8 @@ if __name__ == "__main__":
     print("=" * 60)
     print("JAI BHADRA FOUNDATION - Lucky Draw Coupon Manager (Web)")
     print("=" * 60)
-    print(f"Open http://127.0.0.1:5000 in your browser")
+    print(f"Open http://127.0.0.1:5000 (or http://<this-PC-LAN-IP>:5000) in your browser")
     print(f"Output folder: {rohit.OUTPUT_DIR}")
     print(f"Sales file  : {rohit.SALES_FILE}")
     print("=" * 60)
-    app.run(host="127.0.0.1", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=5000, debug=False)

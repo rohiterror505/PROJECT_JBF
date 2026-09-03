@@ -63,7 +63,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 # SETTINGS
 # ============================================================
 
-MAX_COUPON = 5000
+MAX_COUPON = 9999
 
 # ------------------------------------------------------------
 # DONATION PRICING
@@ -95,6 +95,16 @@ LOGO = BASE_DIR / "images.jpg"
 
 OUTPUT_DIR = BASE_DIR / "lucky_draw_coupons"
 SALES_FILE = BASE_DIR / "coupon_sales.xlsx"
+
+# Photo cache: load left/right photos once at first use and reuse the
+# scaled RGBA images for every subsequent coupon render.  Keyed by the
+# target (width, height) so different frame sizes get their own cached
+# copy.  This avoids re-opening and re-resizing the PNGs on every render.
+_photo_cache = {}
+
+# Font cache: ImageFont.truetype() is expensive when called hundreds of
+# times per render.  Keyed by (size, bold, italic).
+_font_cache = {}
 
 # In-memory cache of the sales workbook rows so the UI does not have to
 # re-open and re-parse coupon_sales.xlsx on every refresh / tab switch
@@ -224,6 +234,11 @@ TABLE_LINE = "#D8BD79"
 # ============================================================
 
 def get_font(size, bold=False, italic=False):
+    key = (size, bold, italic)
+    cached = _font_cache.get(key)
+    if cached is not None:
+        return cached
+
     if italic:
         candidates = [
             r"C:\Windows\Fonts\georgiai.ttf",
@@ -251,9 +266,13 @@ def get_font(size, bold=False, italic=False):
 
     for font_path in candidates:
         if Path(font_path).exists():
-            return ImageFont.truetype(font_path, size)
+            f = ImageFont.truetype(font_path, size)
+            _font_cache[key] = f
+            return f
 
-    return ImageFont.load_default()
+    f = ImageFont.load_default()
+    _font_cache[key] = f
+    return f
 
 
 def get_emoji_font(size):
@@ -716,6 +735,11 @@ def draw_header(draw):
 # ============================================================
 
 def load_photo(path, max_size):
+    cache_key = (str(path), tuple(max_size))
+    cached = _photo_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     if not path.exists():
         print(f"WARNING: {path.name} not found.")
         return None
@@ -724,11 +748,13 @@ def load_photo(path, max_size):
         img = Image.open(path).convert("RGBA")
 
         # CONTAIN = never crop the source image.
-        return ImageOps.contain(
+        scaled = ImageOps.contain(
             img,
             max_size,
             method=Image.Resampling.LANCZOS,
         )
+        _photo_cache[cache_key] = scaled
+        return scaled
 
     except Exception as exc:
         print(f"WARNING: Could not read {path.name}: {exc}")
@@ -2829,7 +2855,7 @@ def _select_stratified_winners(sold_numbers, rows):
 
     Each individual coupon is one ticket: every sold coupon has an exactly
     equal chance of being drawn (10 / N where N is the number of sold
-    coupons, i.e. 10/5000 = 1/500 when all 5000 coupons are sold).  A buyer
+    coupons, i.e. 10/9999 when all 9999 coupons are sold).  A buyer
     who holds 10 coupons therefore has 10x the odds of a buyer who holds 1
     — fair by spend.  There is NO banding, NO sorting, and NO spreading:
     the 10 winners are drawn uniformly without replacement via
@@ -3080,6 +3106,7 @@ def _xlsx_clear_draw_results():
 
 _USE_POSTGRES = bool(os.environ.get("DATABASE_URL"))
 _pg_pool = None
+_pg_ensured = False
 
 
 def _pg_get_pool():
@@ -3151,8 +3178,10 @@ def init_db():
 
 def _pg_ensure():
     """Make sure tables exist (called once per process)."""
-    if _USE_POSTGRES:
+    global _pg_ensured
+    if _USE_POSTGRES and not _pg_ensured:
         init_db()
+        _pg_ensured = True
 
 
 # ---- PG: sales CRUD ----
