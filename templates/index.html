@@ -2313,9 +2313,10 @@ function speakCongrats(r) {
     const myToken = _speechToken;
     const name = _shortNameFor(r);
     const isGrand = /1st prize/i.test(String(r.prize || ""));
+    const couponTag = r.coupon_no != null ? ` Coupon number ${r.coupon_no}!` : "";
     const line = isGrand
-      ? `Congratulations! ... You won the grand prize — ${name}!`
-      : `Congratulations! ... You won ${name}!`;
+      ? `Congratulations! ... You won the grand prize — ${name}!${couponTag}`
+      : `Congratulations! ... You won ${name}!${couponTag}`;
     const u = new SpeechSynthesisUtterance(line);
     if (_speechVoice) u.voice = _speechVoice;
     u.rate = 0.9;
