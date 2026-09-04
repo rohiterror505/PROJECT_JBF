@@ -2266,26 +2266,68 @@ if (window.speechSynthesis) {
     window.speechSynthesis.onvoiceschanged = _pickSpeechVoice;
   }
 }
+// ---- Speech helpers: prevent word cropping (Chrome speechSynthesis bugs) ----
+let _speechToken = 0;
+let _speechHeartbeat = null;
+function _stopSpeechHeartbeat() {
+  if (_speechHeartbeat) { clearInterval(_speechHeartbeat); _speechHeartbeat = null; }
+}
+function _startSpeechHeartbeat() {
+  _stopSpeechHeartbeat();
+  _speechHeartbeat = setInterval(function () {
+    if (window.speechSynthesis && speechSynthesis.speaking) {
+      try { speechSynthesis.resume(); } catch (e) {}
+    } else {
+      _stopSpeechHeartbeat();
+    }
+  }, 5000);
+}
+function _duckMusic(on) {
+  try {
+    if (!_audioCtx || !_masterGain) return;
+    const t = _audioCtx.currentTime;
+    const now = _masterGain.gain.value;
+    _masterGain.gain.cancelScheduledValues(t);
+    _masterGain.gain.setValueAtTime(now, t);
+    _masterGain.gain.linearRampToValueAtTime(on ? 0.12 : 1.0, t + (on ? 0.30 : 0.35));
+  } catch (e) {}
+}
+function _speakAfterCancel(u, afterDone) {
+  if (!window.speechSynthesis) return;
+  function _go() {
+    if (typeof afterDone === "function") u.onend = afterDone;
+    u.onerror = u.onend;
+    try { window.speechSynthesis.speak(u); } catch (e) { if (u.onend) u.onend(); }
+  }
+  if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+    try { window.speechSynthesis.cancel(); } catch (e) {}
+    setTimeout(_go, 250);
+  } else {
+    _go();
+  }
+}
 function speakCongrats(r) {
   if (_audioMuted || !window.speechSynthesis || !r) return;
   try {
+    _speechToken++;
+    const myToken = _speechToken;
     const name = _shortNameFor(r);
     const isGrand = /1st prize/i.test(String(r.prize || ""));
-    const lead = "Congratulations!";
-    const reveal = isGrand
-      ? `You won the grand prize — ${name}!`
-      : `You won ${name}!`;
-    function _say(text) {
-      const u = new SpeechSynthesisUtterance(text);
-      if (_speechVoice) u.voice = _speechVoice;
-      u.rate = 0.92;
-      u.pitch = 1.15;
-      u.volume = 1.0;
-      window.speechSynthesis.speak(u);
-    }
-    window.speechSynthesis.cancel();
-    _say(lead);
-    setTimeout(function () { _say(reveal); }, 250);
+    const line = isGrand
+      ? `Congratulations! ... You won the grand prize — ${name}!`
+      : `Congratulations! ... You won ${name}!`;
+    const u = new SpeechSynthesisUtterance(line);
+    if (_speechVoice) u.voice = _speechVoice;
+    u.rate = 0.9;
+    u.pitch = 1.15;
+    u.volume = 1.0;
+    _duckMusic(true);
+    _startSpeechHeartbeat();
+    _speakAfterCancel(u, function () {
+      if (myToken !== _speechToken) return;
+      _duckMusic(false);
+      _stopSpeechHeartbeat();
+    });
   } catch (e) {}
 }
 
@@ -2300,6 +2342,38 @@ function showBanner(r, finale) {
   b.classList.remove("on", "finale"); void b.offsetWidth; b.classList.add("on");
   if (finale) b.classList.add("finale");
   setTimeout(() => b.classList.remove("on", "finale"), finale ? 2400 : 1500);
+}
+
+// ---- Wish banner (shown once when the draw starts) ----
+function showWishBanner(text) {
+  const b = document.getElementById("cele-banner");
+  document.getElementById("cele-banner-head").textContent = "JAI BHADRA FOUNDATION";
+  document.getElementById("cele-banner-prize").textContent = text;
+  document.getElementById("cele-banner-gift").textContent = "to the Lucky Draw Contestants";
+  document.getElementById("cele-banner-buyer").textContent = "";
+  document.getElementById("cele-banner-coupon").textContent = "";
+  b.classList.remove("on", "finale"); void b.offsetWidth; b.classList.add("on");
+  setTimeout(() => b.classList.remove("on", "finale"), 2600);
+}
+
+function speakWish() {
+  if (_audioMuted || !window.speechSynthesis) return;
+  try {
+    _speechToken++;
+    const myToken = _speechToken;
+    const u = new SpeechSynthesisUtterance("Dear Lucky Draw contestants ... we wish you all the very best!");
+    if (_speechVoice) u.voice = _speechVoice;
+    u.rate = 0.78;
+    u.pitch = 1.05;
+    u.volume = 1.0;
+    _duckMusic(true);
+    _startSpeechHeartbeat();
+    _speakAfterCancel(u, function () {
+      if (myToken !== _speechToken) return;
+      _duckMusic(false);
+      _stopSpeechHeartbeat();
+    });
+  } catch (e) {}
 }
 
 // ---- Combined celebration ----
@@ -2412,6 +2486,8 @@ function revealDrawResults(results) {
   startPetals();
   startMarquee();
   setPanelActive(true);
+  showWishBanner("ALL THE VERY BEST");
+  setTimeout(speakWish, 400);
 }
 
 function revealNext() {
@@ -2435,7 +2511,7 @@ function _doReveal() {
   rows[i].className = isFinale ? "reveal-in zoom first-prize" : "reveal-in zoom";
   rows[i].innerHTML = _buildWinnerRow(ordered[i], i + 1);
   playRevealHit(isFinale);
-  speakCongrats(ordered[i]);
+  setTimeout(function () { speakCongrats(ordered[i]); }, 350);
   celebrate(ordered[i], { finale: isFinale, rowEl: rows[i] });
   _revealState.idx = i + 1;
   const revealText = document.getElementById("dr-reveal-text");
