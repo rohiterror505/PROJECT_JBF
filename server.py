@@ -529,8 +529,9 @@ def api_coupon_render(sno):
 
 @app.route("/api/draw", methods=["POST"])
 def api_draw():
-    """Conduct the Lucky Draw: pick 10 distinct winners from sold coupons
-    and save the results to the workbook.  Returns the winners list."""
+    """Conduct the Lucky Draw: pick 50 distinct winners from sold coupons
+    (40 consolation + 10 main) and save the results to the workbook.
+    Returns the winners list."""
     try:
         if rohit.has_draw_results():
             return _err("Lucky Draw results already exist. Clear them first.", 409)
@@ -545,7 +546,7 @@ def api_draw():
         return _err(str(exc), 500)
 
     return _ok({
-        "message": f"Draw complete! 10 winners selected.",
+        "message": f"Draw complete! 50 winners selected (40 consolation + 10 main).",
         "results": results,
     })
 

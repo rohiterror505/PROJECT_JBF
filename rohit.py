@@ -2788,11 +2788,11 @@ def _xlsx_delete_physical_by_range(rng_start, rng_end, delete_pngs=False):
 
 
 # ============================================================
-# LUCKY DRAW - Pick 10 Winners
+# LUCKY DRAW - Pick 50 Winners (40 Consolation D/C/B/A + 10 Main)
 # ============================================================
 
 DRAW_SHEET = "Lucky Draw"
-DRAW_HEADERS = ["Prize", "Gift Item", "Coupon No", "Set Range", "Buyer", "Phone", "Type", "Drawn At"]
+DRAW_HEADERS = ["Prize", "Gift Item", "Coupon No", "Set Range", "Buyer", "Phone", "Address", "Qty", "Date Sold", "Type", "Drawn At", "Category"]
 
 
 def get_sold_coupon_numbers():
@@ -2849,54 +2849,61 @@ def _sale_row_for_coupon(rows, coupon_no):
     return None
 
 
+TOTAL_WINNERS = 50
+CONSOLATION_QTY = 10
+
+CONSOLATION_ORDER = ["D", "C", "B", "A"]
+CONSOLATION_BY_CAT = {cat: (cat, gift, qty)
+                      for cat, gift, qty in CONSOLATION_PRIZES}
+
+
 def _select_stratified_winners(sold_numbers, rows):
-    """Pick 10 winning coupon numbers from the sold pool by uniform random
+    """Pick 50 winning coupon numbers from the sold pool by uniform random
     sampling — completely fair, no pattern.
 
     Each individual coupon is one ticket: every sold coupon has an exactly
-    equal chance of being drawn (10 / N where N is the number of sold
-    coupons, i.e. 10/9999 when all 9999 coupons are sold).  A buyer
-    who holds 10 coupons therefore has 10x the odds of a buyer who holds 1
-    — fair by spend.  There is NO banding, NO sorting, and NO spreading:
-    the 10 winners are drawn uniformly without replacement via
-    random.sample, and the prize order (1st prize, 2nd prize, ...) is the
-    random draw order — 1st prize is NOT forced onto the lowest coupon
-    number.
+    equal chance of being drawn (50 / N where N is the number of sold
+    coupons).  A buyer who holds 10 coupons therefore has 10x the odds of
+    a buyer who holds 1 — fair by spend.  There is NO banding, NO sorting,
+    and NO spreading: the 50 winners are drawn uniformly without
+    replacement via random.sample, so every sold coupon has exactly the
+    same probability of being chosen and no coupon can win twice.
+
+    The 50 winners are split into the reveal/celebration order:
+        Consolation D (10) -> C (10) -> B (10) -> A (10)
+        -> 10th Prize .. 1st Prize (10 main prizes)
+    The assignment of which drawn coupon lands in which slot is random
+    (random.sample already returns a shuffled order), so the 1st prize is
+    NOT forced onto the lowest coupon number.
 
     `rows` is the list of sale-row tuples (used to map each winning coupon
     back to its buyer / phone / type for the results table).
 
-    Returns a list of result dicts (one per prize, in MAIN_PRIZES order),
-    each carrying: prize, gift, coupon_no, coupon_range_start,
+    Returns a list of 50 result dicts in reveal order, each carrying:
+    category, prize, gift, coupon_no, coupon_range_start,
     coupon_range_end, coupon_display, set_range, buyer, phone, type,
     drawn_at (filled in by the caller).  The caller is responsible for
     setting drawn_at and persisting the results."""
     n = len(sold_numbers)
-    if n < 10:
+    if n < TOTAL_WINNERS:
         raise RuntimeError(
-            f"Not enough sold coupons to draw 10 winners "
-            f"(have {n} sold coupon numbers, need 10)."
+            f"Not enough sold coupons to draw {TOTAL_WINNERS} winners "
+            f"(have {n} sold coupon numbers, need {TOTAL_WINNERS})."
         )
 
-    # --- Uniform random sampling: 10 distinct winners, equal odds ---
-    # random.sample picks 10 distinct coupons uniformly without
-    # replacement, so every sold coupon has exactly the same probability of
-    # being chosen.  No banding, no sorting — completely fair and pattern-
-    # free.  The order returned by random.sample is already random, so the
-    # prize assignment (1st prize -> winners[0], etc.) is random too.
-    winners = random.sample(list(sold_numbers), 10)
+    winners = random.sample(list(sold_numbers), TOTAL_WINNERS)
 
     drawn_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    results = []
-    for i, coupon in enumerate(winners):
-        prize_label, gift_text = MAIN_PRIZES[i]
+
+    def _row_info(coupon):
         row = _sale_row_for_coupon(rows, coupon)
         if row is None:
-            # Should not happen since `coupon` came from the sold pool,
-            # but guard anyway so a single bad row never crashes the draw.
             s = e = coupon
             buyer = None
             phone = None
+            address = None
+            qty = None
+            date_sold = None
             stype = "SALE"
         else:
             try:
@@ -2906,12 +2913,20 @@ def _select_stratified_winners(sold_numbers, rows):
                 s = e = coupon
             buyer = row[1] if len(row) > 1 and row[1] else None
             phone = row[2] if len(row) > 2 and row[2] else None
+            address = row[3] if len(row) > 3 and row[3] else None
+            qty = row[6] if len(row) > 6 and row[6] else None
+            date_sold = row[7] if len(row) > 7 and row[7] else None
             stype = row[8] if len(row) >= 9 and row[8] else "SALE"
         buyer_disp = buyer if buyer else "<PHYSICAL>"
         set_range = (f"{s:04d}-{e:04d}" if s != e else "")
         coupon_display = (f"{coupon:04d}" +
                           (f" (set {set_range})" if set_range else ""))
-        results.append({
+        return s, e, buyer_disp, phone or "", stype, set_range, coupon_display, address, qty, date_sold
+
+    def _result(cat, prize_label, gift_text, coupon):
+        s, e, buyer_disp, phone, stype, set_range, coupon_display, address, qty, date_sold = _row_info(coupon)
+        return {
+            "category": cat,
             "prize": prize_label,
             "gift": gift_text,
             "coupon_no": coupon,
@@ -2920,10 +2935,28 @@ def _select_stratified_winners(sold_numbers, rows):
             "coupon_display": coupon_display,
             "set_range": set_range,
             "buyer": buyer_disp,
-            "phone": phone or "",
+            "phone": phone,
+            "address": address or "",
+            "qty": qty if qty is not None else "",
+            "date_sold": date_sold or "",
             "type": stype,
             "drawn_at": drawn_at,
-        })
+        }
+
+    results = []
+    idx = 0
+    for cat in CONSOLATION_ORDER:
+        _cat, gift_text, _qty = CONSOLATION_BY_CAT[cat]
+        prize_label = f"Consolation {cat}"
+        for _ in range(CONSOLATION_QTY):
+            results.append(_result(cat, prize_label, gift_text, winners[idx]))
+            idx += 1
+
+    for i in range(10):
+        prize_label, gift_text = MAIN_PRIZES[i]
+        results.append(_result("MAIN", prize_label, gift_text, winners[idx]))
+        idx += 1
+
     return results
 
 
@@ -2971,8 +3004,26 @@ def _xlsx_get_draw_results():
             set_range = r[3] if len(r) > 3 else ""
             buyer = r[4] if len(r) > 4 else ""
             phone = r[5] if len(r) > 5 else ""
-            stype = r[6] if len(r) > 6 else ""
-            drawn_at = r[7] if len(r) > 7 else ""
+            # New detailed columns (may be absent in old saved sheets)
+            address = r[6] if len(r) > 6 else ""
+            qty = r[7] if len(r) > 7 else ""
+            date_sold = r[8] if len(r) > 8 else ""
+            # Old layout had Type at index 6, Drawn At at 7, Category at 8.
+            # Detect old layout: index 6 looks like "SALE"/"PHYSICAL".
+            _legacy = str(r[6] if len(r) > 6 else "").upper() in ("SALE", "PHYSICAL")
+            if _legacy:
+                stype = r[6] if len(r) > 6 else ""
+                drawn_at = r[7] if len(r) > 7 else ""
+                category = r[8] if len(r) > 8 else ""
+                address = ""
+                qty = ""
+                date_sold = ""
+            else:
+                stype = r[9] if len(r) > 9 else ""
+                drawn_at = r[10] if len(r) > 10 else ""
+                category = r[11] if len(r) > 11 else ""
+            if not category:
+                category = "MAIN" if prize and not str(prize).startswith("Consolation") else ""
             # Reconstruct a friendly coupon display string.
             try:
                 cnum = int(coupon)
@@ -2982,6 +3033,7 @@ def _xlsx_get_draw_results():
             except (ValueError, TypeError):
                 coupon_display = str(coupon) if coupon != "" else "—"
             out.append({
+                "category": category or "",
                 "prize": prize,
                 "gift": gift,
                 "coupon_no": coupon,
@@ -2989,6 +3041,9 @@ def _xlsx_get_draw_results():
                 "set_range": set_range or "",
                 "buyer": buyer,
                 "phone": phone,
+                "address": address or "",
+                "qty": qty if qty is not None else "",
+                "date_sold": date_sold or "",
                 "type": stype,
                 "drawn_at": drawn_at,
             })
@@ -3004,11 +3059,11 @@ def _xlsx_get_draw_results():
 
 
 def _xlsx_draw_winners():
-    """Conduct the Lucky Draw: pick 10 winning coupon numbers uniformly at
+    """Conduct the Lucky Draw: pick 50 winning coupon numbers uniformly at
     random from the sold pool — completely fair, no pattern.
 
     Each individual coupon is one ticket — a buyer who holds 10 coupons has
-    10x the odds of a buyer who holds 1 (fair by spend).  The 10 winners are
+    10x the odds of a buyer who holds 1 (fair by spend).  The 50 winners are
     drawn with random.sample (uniform without replacement), so every sold
     coupon has an exactly equal chance of winning and there is no banding
     or sorting that would push the 1st prize to the lowest coupon number.
@@ -3027,10 +3082,10 @@ def _xlsx_draw_winners():
         )
 
     sold_numbers = get_sold_coupon_numbers()
-    if len(sold_numbers) < 10:
+    if len(sold_numbers) < TOTAL_WINNERS:
         raise RuntimeError(
-            f"Not enough sold coupons to draw 10 winners "
-            f"(have {len(sold_numbers)} sold coupon numbers, need 10)."
+            f"Not enough sold coupons to draw {TOTAL_WINNERS} winners "
+            f"(have {len(sold_numbers)} sold coupon numbers, need {TOTAL_WINNERS})."
         )
 
     rows = _get_sales_rows()
@@ -3059,7 +3114,10 @@ def _xlsx_save_draw_results(results):
             ws.append([
                 r["prize"], r["gift"], r["coupon_no"],
                 set_range,
-                r["buyer"], r["phone"], r["type"], r["drawn_at"],
+                r["buyer"], r["phone"], r.get("address", ""),
+                r.get("qty", ""), r.get("date_sold", ""),
+                r["type"], r["drawn_at"],
+                r.get("category", ""),
             ])
         try:
             wb.save(SALES_FILE)
@@ -3165,8 +3223,24 @@ def init_db():
                     buyer       TEXT,
                     phone       TEXT,
                     sale_type   TEXT,
-                    drawn_at    TEXT
+                    drawn_at    TEXT,
+                    category    TEXT,
+                    address     TEXT,
+                    qty         TEXT,
+                    date_sold   TEXT
                 )
+            """)
+            cur.execute("""
+                ALTER TABLE draw_results ADD COLUMN IF NOT EXISTS category TEXT
+            """)
+            cur.execute("""
+                ALTER TABLE draw_results ADD COLUMN IF NOT EXISTS address TEXT
+            """)
+            cur.execute("""
+                ALTER TABLE draw_results ADD COLUMN IF NOT EXISTS qty TEXT
+            """)
+            cur.execute("""
+                ALTER TABLE draw_results ADD COLUMN IF NOT EXISTS date_sold TEXT
             """)
         conn.commit()
     except Exception:
@@ -3416,7 +3490,8 @@ def _pg_get_draw_results():
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT prize, gift, coupon_no, range_start, range_end,
-                       buyer, phone, sale_type, drawn_at
+                       buyer, phone, sale_type, drawn_at, category,
+                       address, qty, date_sold
                 FROM draw_results ORDER BY id
             """)
             rows = cur.fetchall()
@@ -3425,13 +3500,17 @@ def _pg_get_draw_results():
     if not rows:
         return None
     out = []
-    for prize, gift, coupon_no, rs, re_, buyer, phone, stype, drawn_at in rows:
+    for (prize, gift, coupon_no, rs, re_, buyer, phone, stype, drawn_at,
+         category, address, qty, date_sold) in rows:
         set_range = (f"{int(rs):04d}-{int(re_):04d}"
                      if rs is not None and re_ is not None and rs != re_ else "")
         coupon_display = (f"{int(coupon_no):04d}" + (
             f" (set {set_range})" if set_range else "")
             if coupon_no is not None else "—")
+        if not category:
+            category = "MAIN" if prize and not str(prize).startswith("Consolation") else ""
         out.append({
+            "category": category or "",
             "prize": prize,
             "gift": gift,
             "coupon_no": coupon_no,
@@ -3439,6 +3518,9 @@ def _pg_get_draw_results():
             "set_range": set_range,
             "buyer": buyer,
             "phone": phone or "",
+            "address": address or "",
+            "qty": qty if qty is not None else "",
+            "date_sold": date_sold or "",
             "type": stype,
             "drawn_at": drawn_at,
         })
@@ -3462,10 +3544,10 @@ def _pg_get_sold_sale_rows():
 
 
 def _pg_draw_winners():
-    """Conduct the Lucky Draw (Postgres mode): pick 10 winning coupon
+    """Conduct the Lucky Draw (Postgres mode): pick 50 winning coupon
     numbers uniformly at random from the sold pool — completely fair, no
     pattern.  Each individual coupon is one ticket (fair by spend — a
-    10-coupon buyer has 10x the odds of a 1-coupon buyer).  The 10 winners
+    10-coupon buyer has 10x the odds of a 1-coupon buyer).  The 50 winners
     are drawn with random.sample (uniform without replacement), so every
     sold coupon has an exactly equal chance of winning and there is no
     banding or sorting that would push the 1st prize to the lowest coupon
@@ -3478,10 +3560,10 @@ def _pg_draw_winners():
         )
 
     sold_numbers = get_sold_coupon_numbers()
-    if len(sold_numbers) < 10:
+    if len(sold_numbers) < TOTAL_WINNERS:
         raise RuntimeError(
-            f"Not enough sold coupons to draw 10 winners "
-            f"(have {len(sold_numbers)} sold coupon numbers, need 10)."
+            f"Not enough sold coupons to draw {TOTAL_WINNERS} winners "
+            f"(have {len(sold_numbers)} sold coupon numbers, need {TOTAL_WINNERS})."
         )
 
     rows = _pg_list_sales(print_it=False)
@@ -3496,11 +3578,15 @@ def _pg_draw_winners():
                 cur.execute("""
                     INSERT INTO draw_results
                         (prize, gift, coupon_no, range_start, range_end,
-                         buyer, phone, sale_type, drawn_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                         buyer, phone, sale_type, drawn_at, category,
+                         address, qty, date_sold)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (r["prize"], r["gift"], r["coupon_no"],
                       r["coupon_range_start"], r["coupon_range_end"],
-                      r["buyer"], r["phone"], r["type"], r["drawn_at"]))
+                      r["buyer"], r["phone"], r["type"], r["drawn_at"],
+                      r.get("category", ""),
+                      r.get("address", ""), r.get("qty", ""),
+                      r.get("date_sold", "")))
         conn.commit()
     except Exception:
         conn.rollback()
@@ -3846,12 +3932,12 @@ def view_gaps():
 
 
 def prompt_lucky_draw():
-    """Conduct the Lucky Draw - pick 10 distinct winners from sold coupons
-    and save the results to the Excel workbook.  Returns True to continue
-    the menu loop."""
+    """Conduct the Lucky Draw - pick 50 distinct winners from sold coupons
+    (40 consolation + 10 main) and save the results to the Excel workbook.
+    Returns True to continue the menu loop."""
     print()
     print("=" * 60)
-    print("LUCKY DRAW - PICK 10 WINNERS")
+    print("LUCKY DRAW - PICK 50 WINNERS")
     print("=" * 60)
 
     try:
@@ -3871,18 +3957,22 @@ def prompt_lucky_draw():
         return True
 
     print(f"Total sold entries (buyers/sets) eligible: {len(pool)}")
-    if len(pool) < 10:
-        print(f"ERROR: Need at least 10 sold entries (buyers/sets) to draw 10 winners.")
+    if len(pool) < TOTAL_WINNERS:
+        print(f"ERROR: Need at least {TOTAL_WINNERS} sold entries (buyers/sets) "
+              f"to draw {TOTAL_WINNERS} winners.")
         return True
 
     print()
     print("Rules:")
-    print("  - 10 distinct winning entries are drawn.")
-    print("  - One entry = one buyer or one physical set.")
-    print("  - No buyer/set can win more than one prize.")
-    print("  - A random coupon from the winning set's range is shown.")
+    print(f"  - {TOTAL_WINNERS} distinct winning coupons are drawn uniformly at random.")
+    print("  - Every sold coupon has exactly equal odds (fair by spend).")
+    print("  - No coupon can win more than once.")
+    print("  - 10 winners each for Consolation D, C, B, A, then 10 main prizes.")
     print()
-    print("10 prizes will be drawn:")
+    print("Consolation prizes (10 each):")
+    for cat, gift, qty in CONSOLATION_PRIZES:
+        print(f"  Consolation {cat}: {gift}  x{qty}")
+    print("Main prizes (10):")
     for i, (prize, gift) in enumerate(MAIN_PRIZES):
         print(f"  {prize}: {gift}")
     print()
@@ -3902,7 +3992,7 @@ def prompt_lucky_draw():
     print("=" * 80)
     print("LUCKY DRAW WINNERS")
     print("=" * 80)
-    print(f"{'Prize':<14}{'Coupon':<10}{'Set Range':<14}{'Buyer':<22}{'Type':<10}")
+    print(f"{'Prize':<16}{'Coupon':<10}{'Set Range':<14}{'Buyer':<22}{'Type':<10}")
     print("-" * 80)
     for r in results:
         buyer_short = str(r["buyer"])[:20]
@@ -3910,7 +4000,7 @@ def prompt_lucky_draw():
         s = r.get("coupon_range_start")
         e = r.get("coupon_range_end")
         set_range = f"{s:04d}-{e:04d}" if s is not None and e is not None and s != e else "-"
-        print(f"{r['prize']:<14}{coupon_str:<10}{set_range:<14}{buyer_short:<22}{r['type']:<10}")
+        print(f"{r['prize']:<16}{coupon_str:<10}{set_range:<14}{buyer_short:<22}{r['type']:<10}")
     print("-" * 80)
     print(f"Draw conducted at: {results[0]['drawn_at']}")
     print(f"Results saved to '{SALES_FILE.name}' (sheet: {DRAW_SHEET}).")
@@ -3989,7 +4079,7 @@ def menu():
         print("  8. Delete ALL sales")
         print("  9. Last coupon sold")
         print(" 10. View gap numbers")
-        print(" 11. Lucky Draw - Pick 10 Winners")
+        print(" 11. Lucky Draw - Pick 50 Winners (40 Consolation + 10 Main)")
         print(" 12. View Lucky Draw Results")
         print(" 13. Clear Lucky Draw Results")
         print(" 14. Exit")

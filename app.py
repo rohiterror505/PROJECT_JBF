@@ -482,7 +482,7 @@ class DrawActionWorker(QThread):
         try:
             if tag == "draw":
                 results = rohit.draw_winners()
-                self.done.emit(tag, True, "Draw complete! 10 winners selected.", results)
+                self.done.emit(tag, True, "Draw complete! 50 winners selected (40 consolation + 10 main).", results)
             elif tag == "clear":
                 cleared = rohit.clear_draw_results()
                 msg = ("Lucky Draw results cleared." if cleared
@@ -1554,9 +1554,10 @@ class LuckyDrawTab(QWidget):
         lay.addWidget(title)
 
         info = QLabel(
-            "Draws 10 distinct winning coupon numbers from all sold coupons. "
-            "Each winner gets one prize (1st-10th). Results are saved to the "
-            "workbook and cannot be re-run until cleared."
+            "Draws 50 distinct winning coupon numbers from all sold coupons - "
+            "10 each for Consolation D, C, B, A (40 consolation) plus 10 main "
+            "prizes (1st-10th). Results are saved to the workbook and cannot "
+            "be re-run until cleared."
         )
         info.setWordWrap(True)
         info.setStyleSheet(f"color:{GREY};")
@@ -1591,9 +1592,10 @@ class LuckyDrawTab(QWidget):
         winners_title.setProperty("heading", True)
         lay.addWidget(winners_title)
 
-        self.table = QTableWidget(0, 7)
+        self.table = QTableWidget(0, 12)
         self.table.setHorizontalHeaderLabels([
-            "Prize", "Gift Item", "Coupon No", "Set Range", "Buyer", "Phone", "Type"
+            "S.No", "Prize", "Gift Item", "Coupon No", "Set Range", "Buyer",
+            "Phone", "Address", "Qty", "Date Sold", "Type", "Category"
         ])
         self.table.setAlternatingRowColors(True)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -1601,7 +1603,7 @@ class LuckyDrawTab(QWidget):
         hdr = self.table.horizontalHeader()
         hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        for i in [2, 3, 4, 5, 6]:
+        for i in [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]:
             hdr.setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
         lay.addWidget(self.table, stretch=1)
 
@@ -1630,14 +1632,15 @@ class LuckyDrawTab(QWidget):
         confirm = QMessageBox.question(
             self, "Confirm Draw",
             "Conduct the Lucky Draw now?\n"
-            "10 distinct winners will be randomly picked from sold coupons.\n"
+            "50 distinct winners will be randomly picked from sold coupons "
+            "(40 consolation + 10 main).\n"
             "This cannot be undone."
         )
         if confirm != QMessageBox.StandardButton.Yes:
             return
         self.draw_btn.setEnabled(False)
         self.clear_btn.setEnabled(False)
-        self.msg_label.setText("Drawing 10 winners...")
+        self.msg_label.setText("Drawing 50 winners...")
         self._start_worker("draw")
 
     def clear_results(self):
@@ -1670,12 +1673,25 @@ class LuckyDrawTab(QWidget):
         if results:
             drawn_at = results[0].get("drawn_at", "—") if isinstance(results[0], dict) else "—"
             self.status_label.setText(
-                f"Draw completed on {drawn_at} - 10 winners saved."
+                f"Draw completed on {drawn_at} - 50 winners saved."
             )
             self.draw_btn.setEnabled(False)
             self.clear_btn.setEnabled(True)
-            self.table.setRowCount(len(results))
-            for i, r in enumerate(results):
+            _cat_order = {"D": 0, "C": 1, "B": 2, "A": 3, "MAIN": 4}
+            _main_rank = {
+                "1st Prize": 0, "2nd Prize": 1, "3rd Prize": 2, "4th Prize": 3,
+                "5th Prize": 4, "6th Prize": 5, "7th Prize": 6, "8th Prize": 7,
+                "9th Prize": 8, "10th Prize": 9,
+            }
+            def _sort_key(r):
+                cat = r.get("category") or ("MAIN" if not str(r.get("prize", "")).startswith("Consolation") else "")
+                prize = str(r.get("prize", ""))
+                if cat == "MAIN":
+                    return (4, _main_rank.get(prize, 99))
+                return (_cat_order.get(cat, 9), 0)
+            ordered = sorted(results, key=_sort_key)
+            self.table.setRowCount(len(ordered))
+            for i, r in enumerate(ordered):
                 coupon = r.get("coupon_no", "")
                 coupon_str = f"{int(coupon):04d}" if coupon != "" else "—"
                 set_range = r.get("set_range", "") or r.get("coupon_range_start")
@@ -1685,21 +1701,32 @@ class LuckyDrawTab(QWidget):
                     set_range = f"{int(s):04d}-{int(e):04d}" if s != e else ""
                 else:
                     set_range = r.get("set_range", "") or ""
+                cat = r.get("category", "") or ""
+                if not cat:
+                    cat = "MAIN" if not str(r.get("prize", "")).startswith("Consolation") else ""
+                cat_label = ("Main" if cat == "MAIN"
+                             else (f"Consolation {cat}" if cat else "—"))
                 vals = [
+                    str(i + 1),
                     str(r.get("prize", "")),
                     str(r.get("gift", "")),
                     coupon_str,
                     str(set_range) if set_range else "—",
                     str(r.get("buyer", "")),
                     str(r.get("phone", "") or "—"),
+                    str(r.get("address", "") or "—"),
+                    str(r.get("qty", "") or "—"),
+                    str(r.get("date_sold", "") or "—"),
                     str(r.get("type", "")),
+                    cat_label,
                 ]
                 for c, v in enumerate(vals):
                     self.table.setItem(i, c, QTableWidgetItem(v))
             self.table.resizeColumnsToContents()
         else:
             self.status_label.setText(
-                "No draw conducted yet. Click Conduct Draw to pick 10 winners."
+                "No draw conducted yet. Click Conduct Draw to pick 50 winners "
+                "(40 consolation + 10 main)."
             )
             self.draw_btn.setEnabled(True)
             self.clear_btn.setEnabled(False)
