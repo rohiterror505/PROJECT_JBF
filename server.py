@@ -393,20 +393,31 @@ def api_physical():
             return _err(
                 f"Coupons {overlap[0]:04d}-{overlap[1]:04d} already sold."
             )
-        generated = 0
+
+        # Build all rows for batch insert (much faster than per-row DB
+        # round-trips, especially on Render/Neon where each commit has
+        # network latency and the free tier has a 30s request timeout).
+        sale_rows = []
         for i in range(num_sets):
             s = start + i * set_size
             e = s + set_size - 1
-            try:
-                if not rohit._USE_POSTGRES:
-                    rohit.create_coupon(s, e, amount=set_amount)
-                rohit.record_sale(
-                    None, None, None, s, e, sale_type="PHYSICAL",
-                    set_size=set_size, amount=set_amount,
-                )
-                generated += 1
-            except Exception:
-                pass
+            sale_rows.append({
+                "name": None, "phone": None, "address": None,
+                "start": s, "end": e, "sale_type": "PHYSICAL",
+                "set_size": set_size, "amount": set_amount,
+            })
+
+        # In Excel mode, also generate the coupon PNGs (not needed on
+        # Render/Postgres where coupons are rendered on demand).
+        if not rohit._USE_POSTGRES:
+            for r in sale_rows:
+                try:
+                    rohit.create_coupon(r["start"], r["end"], amount=set_amount)
+                except Exception:
+                    pass
+
+        generated = rohit.record_sale_batch(sale_rows)
+
         return _ok({
             "message": f"Done. {generated}/{num_sets} set(s) generated. "
                         f"Numbers {start:04d}-{end_block:04d} locked.",

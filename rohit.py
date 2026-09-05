@@ -3331,7 +3331,53 @@ def _pg_record_sale(name, phone, address, start, end, sale_type="SALE",
         _pg_release(conn)
 
 
-def _pg_delete_sale(sno, delete_png=False):
+def _pg_record_sale_batch(sale_rows):
+    """Insert multiple sale rows in a single transaction.
+
+    sale_rows is a list of dicts with keys: name, phone, address, start,
+    end, sale_type, set_size, amount.  Returns the number of rows inserted.
+    All rows are assigned sequential sno values starting from the current
+    MAX(sno)+1.  If any insert fails, the entire batch is rolled back."""
+    if not sale_rows:
+        return 0
+    _pg_ensure()
+    date_sold = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = _pg_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COALESCE(MAX(sno), 0) + 1 FROM sales")
+            next_sno = cur.fetchone()[0]
+            params = []
+            for i, r in enumerate(sale_rows):
+                s = r["start"]
+                e = r["end"]
+                qty = e - s + 1
+                stype = r.get("sale_type", "SALE")
+                set_size = r.get("set_size")
+                if set_size is None:
+                    set_size = qty if stype == "PHYSICAL" else None
+                amount = r.get("amount")
+                if amount is None:
+                    amount = (price_for_set_size(qty) if stype == "PHYSICAL"
+                              else qty * PRICE_PER_COUPON)
+                params.append((
+                    next_sno + i, r.get("name"), r.get("phone"),
+                    r.get("address"), s, e, qty, date_sold, stype,
+                    set_size, amount,
+                ))
+            cur.executemany("""
+                INSERT INTO sales
+                    (sno, name, phone, address, start_no, end_no, qty,
+                     date_sold, sale_type, set_size, amount)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, params)
+        conn.commit()
+        return len(params)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        _pg_release(conn)
     """Delete the sale with the given sno and renumber remaining rows.
     delete_png is ignored in Postgres mode (no PNG files on cloud)."""
     _pg_ensure()
@@ -3631,6 +3677,28 @@ def record_sale(name, phone, address, start, end, sale_type="SALE",
     return _xlsx_record_sale(name, phone, address, start, end,
                              sale_type=sale_type, set_size=set_size,
                              amount=amount)
+
+
+def record_sale_batch(sale_rows):
+    """Insert multiple sale rows efficiently (single transaction in Postgres
+    mode, loop in Excel mode).  sale_rows is a list of dicts with keys:
+    name, phone, address, start, end, sale_type, set_size, amount.
+    Returns the number of rows inserted."""
+    if not sale_rows:
+        return 0
+    if _USE_POSTGRES:
+        return _pg_record_sale_batch(sale_rows)
+    count = 0
+    for r in sale_rows:
+        _xlsx_record_sale(
+            r.get("name"), r.get("phone"), r.get("address"),
+            r["start"], r["end"],
+            sale_type=r.get("sale_type", "SALE"),
+            set_size=r.get("set_size"),
+            amount=r.get("amount"),
+        )
+        count += 1
+    return count
 
 
 def list_sales(print_it=True):
