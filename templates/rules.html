@@ -148,6 +148,75 @@
     border-radius: 4px; font-size: 13px; color: var(--ink-2);
   }
 
+  /* ---------- Coupon breakdown ---------- */
+  .breakdown-title {
+    font-size: 13px; color: var(--maroon); font-weight: 800;
+    margin: 18px 0 8px; letter-spacing: 0.3px;
+  }
+  table.breakdown { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  table.breakdown th, table.breakdown td {
+    text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line);
+  }
+  table.breakdown th {
+    background: var(--gold-soft); color: var(--maroon);
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px;
+  }
+  table.breakdown tr:hover td { background: var(--gold-pale); }
+  table.breakdown td.seg { font-weight: 700; color: var(--maroon); }
+  table.breakdown td.num { font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+  table.breakdown td.qty { text-align: center; font-weight: 700; color: var(--maroon-2); }
+  table.breakdown tr.total td { background: var(--gold-pale); font-weight: 800; color: var(--maroon); }
+  table.breakdown tr.total td.qty { color: var(--maroon); }
+
+  /* ---------- Channel sub-list inside rules ---------- */
+  ol.rules ul.channels {
+    list-style: none; margin: 8px 0 2px; padding: 0;
+  }
+  ol.rules ul.channels li {
+    border: none; padding: 4px 0 4px 22px; position: relative; counter-increment: none;
+    font-size: 13.5px; color: var(--ink-2);
+  }
+  ol.rules ul.channels li::before {
+    content: ""; position: absolute; left: 6px; top: 12px;
+    width: 8px; height: 8px; border-radius: 50%; background: var(--gold);
+  }
+  ol.rules ul.channels li::after { content: none; }
+  ol.rules ul.channels li strong { color: var(--maroon); }
+
+  /* ---------- Fairness points ---------- */
+  ul.fair { list-style: none; padding: 0; }
+  ul.fair li {
+    padding: 8px 10px 8px 34px; position: relative;
+    border-bottom: 1px dashed var(--line); font-size: 14px; color: var(--ink-2);
+  }
+  ul.fair li:last-child { border-bottom: none; }
+  ul.fair li::before {
+    content: "\2713"; position: absolute; left: 8px; top: 8px;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--maroon); color: var(--gold-light);
+    font-size: 11px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+  }
+  ul.fair li strong { color: var(--maroon); }
+
+  /* ---------- Claim cards ---------- */
+  .claim-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px;
+  }
+  .claim-card {
+    background: var(--gold-pale); border: 1px solid var(--line);
+    border-radius: var(--radius-sm); padding: 14px 16px;
+  }
+  .claim-card .tag {
+    display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: 0.6px;
+    text-transform: uppercase; color: var(--cream); background: var(--maroon);
+    padding: 3px 10px; border-radius: 20px; margin-bottom: 8px;
+  }
+  .claim-card h3 { font-size: 14px; color: var(--maroon); font-weight: 800; margin-bottom: 6px; }
+  .claim-card p { font-size: 13px; color: var(--ink-2); }
+  .claim-card p strong { color: var(--maroon); }
+
   /* ---------- Footer ---------- */
   .footer {
     text-align: center; padding: 20px;
@@ -207,10 +276,49 @@
             <div class="val">&#8377;100 each (sets of 1 / 5 / 10)</div>
           </div>
           <div class="event-item">
-            <div class="lbl">Eligible Pool</div>
-            <div class="val">ALL 9999 coupons (1&ndash;9999), sold or unsold &mdash; 1-in-9999 chance each</div>
+            <div class="lbl">Winning Odds</div>
+            <div class="val">1-in-9999 chance per coupon</div>
           </div>
         </div>
+
+        <div class="breakdown-title">&#127915; Coupon Pool Breakdown</div>
+        <table class="breakdown">
+          <thead>
+            <tr><th>Segment</th><th>Coupon Range</th><th>Count</th><th>How Sold</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="seg">Online (digital)</td>
+              <td class="num">0001 &ndash; 4999</td>
+              <td class="qty">4999</td>
+              <td>Website &mdash; buyer details recorded</td>
+            </tr>
+            <tr>
+              <td class="seg">Offline &mdash; Set of 10</td>
+              <td class="num">5000 &ndash; 6499</td>
+              <td class="qty">1500</td>
+              <td>150 booklets &times; 10 coupons</td>
+            </tr>
+            <tr>
+              <td class="seg">Offline &mdash; Set of 5</td>
+              <td class="num">6500 &ndash; 8499</td>
+              <td class="qty">2000</td>
+              <td>400 booklets &times; 5 coupons</td>
+            </tr>
+            <tr>
+              <td class="seg">Offline &mdash; Set of 1</td>
+              <td class="num">8500 &ndash; 9999</td>
+              <td class="qty">1500</td>
+              <td>1500 single coupons</td>
+            </tr>
+            <tr class="total">
+              <td class="seg">TOTAL POOL</td>
+              <td class="num">0001 &ndash; 9999</td>
+              <td class="qty">9999</td>
+              <td>Every coupon eligible</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -219,17 +327,63 @@
       <div class="panel-head"><h2>&#128221; Lucky Draw Rules</h2></div>
       <div class="panel-body">
         <ol class="rules">
-          <li>ALL <strong>9999 coupons</strong> (numbers 1&ndash;9999) are eligible for the draw &mdash; whether sold or unsold. Each coupon has a <strong>1-in-9999</strong> chance of being drawn.</li>
+          <li>
+            <strong>Eligibility &amp; odds.</strong> All <strong>9999 coupons</strong> (numbers 0001&ndash;9999) are eligible for the draw &mdash; whether sold or unsold. Each coupon carries an <strong>equal 1-in-9999 chance</strong> of being drawn.
+            <ul class="channels">
+              <li><strong>Online (0001&ndash;4999):</strong> sold via the website. Buyer name and contact are recorded digitally at the time of purchase.</li>
+              <li><strong>Offline (5000&ndash;9999):</strong> sold as physical paper coupons (booklets of 10, booklets of 5, or single coupons). These are <strong>bearer instruments</strong> &mdash; no buyer details are recorded. <strong>Whoever physically holds the winning coupon at draw time may claim the prize.</strong></li>
+            </ul>
+          </li>
           <li>Each coupon costs <strong>&#8377;100</strong> and is sold in sets of 1, 5 or 10.</li>
-          <li>The draw is conducted <strong>electronically</strong>. The system randomly picks <strong>50 distinct winning coupon numbers</strong> from all 9999 coupons &mdash; no coupon can win twice.</li>
-          <li>If an <strong>unsold coupon</strong> is drawn, the winner is marked <strong>UNSOLD</strong> &mdash; the prize is unclaimed and there is no re-draw.</li>
+          <li>The draw is conducted <strong>electronically</strong>. The system randomly picks <strong>50 distinct winning coupon numbers</strong> from all 9999 coupons &mdash; <strong>no coupon can win twice</strong>.</li>
+          <li>If an <strong>unsold coupon</strong> is drawn, the winner is marked <strong>UNSOLD</strong> &mdash; the prize is unclaimed and there is <strong>no re-draw</strong>. (This preserves exact 1-in-9999 odds for every coupon.)</li>
+          <li>Online and offline coupons are entered in the <strong>same pool</strong> with no separate quota &mdash; online buyers get the same odds as offline holders.</li>
           <li>Winners are revealed in the order: <strong>Consolation D &rarr; C &rarr; B &rarr; A</strong>, then <strong>10th Prize &rarr; 1st Prize</strong> (grand finale).</li>
-          <li>Results are <strong>saved permanently</strong> once the draw is conducted and cannot be re-run until the organisers clear them.</li>
-          <li>Sold winners must <strong>present the winning coupon</strong> (or matching coupon-number proof) to claim their prize.</li>
-          <li>Prizes are distributed <strong>at the venue on draw day</strong>. Please carry valid identification.</li>
+          <li>The draw is performed <strong>live on screen</strong> at the venue. Results are <strong>saved permanently</strong> once conducted and cannot be re-run until the organisers clear them.</li>
+          <li>Sold winners must have their <strong>coupon number and identity verified</strong> before their prize is released. See the claim process below for doorstep delivery details.</li>
+          <li>All prizes are <strong>delivered to the winner's doorstep</strong> after verification &mdash; no need to collect in person at the venue.</li>
           <li>The decision of the <strong>organisers is final</strong> and binding on all contestants.</li>
         </ol>
       </div>
+    </div>
+
+    <!-- Fairness -->
+    <div class="panel">
+      <div class="panel-head"><h2>&#9878; How the Draw is Fair</h2></div>
+      <div class="panel-body">
+        <ul class="fair">
+          <li><strong>Uniform random selection.</strong> A certified electronic random-number generator draws 50 distinct numbers uniformly from the full 0001&ndash;9999 pool. Every coupon &mdash; online or offline, sold or unsold &mdash; has the <strong>same 1-in-9999 probability</strong>.</li>
+          <li><strong>One pool, both channels.</strong> Online coupons (0001&ndash;4999) and offline coupons (5000&ndash;9999) compete in the same draw. There is no separate quota for either channel.</li>
+          <li><strong>No double wins.</strong> Each drawn number is removed from the pool, so a single coupon cannot win more than one prize.</li>
+          <li><strong>Live &amp; transparent.</strong> The draw runs on screen at the venue, so contestants can witness every winning number being drawn in real time.</li>
+          <li><strong>Permanent, tamper-proof results.</strong> Once the draw is complete, results are saved and locked. They cannot be re-run or altered except by an explicit organisers' reset.</li>
+          <li><strong>No re-draw for unsold numbers.</strong> If an unsold coupon is drawn, the prize is declared unclaimed rather than re-rolling. This keeps the odds mathematically exact for every coupon that was sold.</li>
+          <li><strong>Bearer coupons treated equally.</strong> Offline coupons are not tied to a buyer name, but their numbers sit in the same pool and follow the same random process as online coupons.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Claim process -->
+    <div class="panel">
+      <div class="panel-head"><h2>&#9989; How to Claim Your Prize</h2></div>
+      <div class="panel-body">
+        <div class="claim-grid">
+          <div class="claim-card">
+            <span class="tag">Online Winner</span>
+            <h3>Coupons 0001 &ndash; 4999</h3>
+            <p>If your coupon number is drawn as a sold winner, the foundation will <strong>notify you via your registered contact</strong> on record. Once your coupon number and buyer ID are verified, your prize is <strong>delivered to your doorstep</strong> at the address captured at purchase. No need to visit the venue.</p>
+          </div>
+          <div class="claim-card">
+            <span class="tag">Offline Winner</span>
+            <h3>Coupons 5000 &ndash; 9999</h3>
+            <p>Offline coupons are <strong>bearer instruments</strong> &mdash; no buyer details are on file. To claim, <strong>present the winning coupon</strong> along with <strong>valid photo ID</strong> so a delivery address can be recorded, and your prize is <strong>delivered to your doorstep</strong>. <strong>No coupon, no claim.</strong> Lost or destroyed coupons cannot be replaced.</p>
+          </div>
+        </div>
+        <div class="note">
+          <strong>Important:</strong> All prizes are <strong>delivered to the winner's doorstep</strong> after verification. Online winners are auto-verified from the buyer record; offline winners must present the physical coupon and ID to register a delivery address. The organisers' decision on any dispute is final.
+        </div>
+      </div>
+    </div>
     </div>
 
     <!-- Prizes -->
