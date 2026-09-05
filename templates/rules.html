@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#7A1F00">
+<title>JAI BHADRA FOUNDATION — Lucky Draw Rules &amp; Prizes</title>
+<style>
+  :root {
+    --maroon: #9A2A00;
+    --maroon-2: #C44404;
+    --maroon-light: #E85D04;
+    --gold: #C99B2E;
+    --gold-light: #F3D264;
+    --gold-pale: #FFF6D6;
+    --gold-soft: #FAEFC4;
+    --cream: #FBF7EE;
+    --cream-2: #FFFEFA;
+    --white: #FFFFFF;
+    --ink: #1A1614;
+    --ink-2: #4A4340;
+    --muted: #8A8079;
+    --line: #EAE3D5;
+    --radius: 10px;
+    --radius-sm: 7px;
+    --shadow-sm: 0 1px 3px rgba(26,22,20,0.06), 0 1px 2px rgba(26,22,20,0.04);
+    --shadow-md: 0 4px 12px rgba(26,22,20,0.08), 0 2px 4px rgba(26,22,20,0.04);
+    --shadow-lg: 0 12px 32px rgba(26,22,20,0.10), 0 4px 8px rgba(26,22,20,0.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Segoe UI", -apple-system, "Helvetica Neue", sans-serif;
+    background: var(--cream);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  /* ---------- Header ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 20;
+    background: linear-gradient(180deg, var(--maroon) 0%, #7A1F00 100%);
+    color: var(--gold-light);
+    padding: 16px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+    flex-wrap: wrap; gap: 10px;
+  }
+  .topbar .brand-block { display: flex; align-items: center; gap: 12px; }
+  .topbar .logo {
+    width: 46px; height: 46px; border-radius: 50%;
+    background: var(--gold); color: var(--maroon);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 18px;
+    box-shadow: 0 0 0 3px rgba(243,210,100,0.3);
+    flex-shrink: 0;
+  }
+  .topbar h1 { font-size: 17px; font-weight: 800; letter-spacing: 0.3px; line-height: 1.2; }
+  .topbar .sub { font-size: 12px; color: var(--gold-pale); opacity: 0.9; }
+  .topbar .actions { display: flex; gap: 10px; }
+  .btn {
+    border: none; border-radius: var(--radius-sm); cursor: pointer;
+    font-size: 13px; font-weight: 700; padding: 10px 18px;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+    text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn-gold { background: var(--gold); color: var(--maroon); box-shadow: var(--shadow-sm); }
+  .btn-gold:hover { background: var(--gold-light); }
+  .btn-ghost { background: transparent; color: var(--gold-light); border: 1px solid rgba(243,210,100,0.5); }
+  .btn-ghost:hover { background: rgba(243,210,100,0.12); }
+
+  /* ---------- Layout ---------- */
+  .wrap { max-width: 880px; margin: 0 auto; padding: 28px 20px 60px; }
+  .panel {
+    background: var(--cream-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+    margin-bottom: 22px;
+    overflow: hidden;
+  }
+  .panel-head {
+    background: linear-gradient(180deg, var(--gold-pale) 0%, var(--gold-soft) 100%);
+    border-bottom: 1px solid var(--line);
+    padding: 14px 20px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .panel-head h2 { font-size: 16px; color: var(--maroon); font-weight: 800; letter-spacing: 0.3px; }
+  .panel-body { padding: 18px 20px; }
+
+  /* ---------- Event details ---------- */
+  .event-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+  }
+  .event-item {
+    background: var(--gold-pale); border: 1px solid var(--line);
+    border-radius: var(--radius-sm); padding: 12px 14px;
+  }
+  .event-item .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); font-weight: 700; }
+  .event-item .val { font-size: 14px; color: var(--ink); font-weight: 700; margin-top: 3px; }
+
+  /* ---------- Rules list ---------- */
+  ol.rules { list-style: none; counter-reset: r; padding: 0; }
+  ol.rules li {
+    counter-increment: r;
+    position: relative; padding: 8px 10px 8px 42px;
+    border-bottom: 1px dashed var(--line);
+  }
+  ol.rules li:last-child { border-bottom: none; }
+  ol.rules li::before {
+    content: counter(r);
+    position: absolute; left: 8px; top: 9px;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--maroon); color: var(--gold-light);
+    font-size: 12px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+  }
+  ol.rules li strong { color: var(--maroon); }
+
+  /* ---------- Prize tables ---------- */
+  .prize-section-title {
+    font-size: 15px; color: var(--maroon); font-weight: 800;
+    margin: 18px 0 10px; padding-bottom: 6px; border-bottom: 2px solid var(--gold);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .prize-section-title:first-child { margin-top: 0; }
+  table.prizes { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.prizes th, table.prizes td {
+    text-align: left; padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  table.prizes th {
+    background: var(--gold-soft); color: var(--maroon);
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px;
+  }
+  table.prizes tr:hover td { background: var(--gold-pale); }
+  table.prizes .rank { width: 70px; font-weight: 800; color: var(--maroon); }
+  table.prizes .item { color: var(--ink-2); }
+  table.prizes .qty { width: 64px; text-align: center; font-weight: 700; color: var(--maroon-2); }
+
+  .note {
+    margin-top: 16px; padding: 12px 14px;
+    background: var(--gold-pale); border-left: 4px solid var(--gold);
+    border-radius: 4px; font-size: 13px; color: var(--ink-2);
+  }
+
+  /* ---------- Footer ---------- */
+  .footer {
+    text-align: center; padding: 20px;
+    color: var(--muted); font-size: 12px;
+  }
+  .footer a { color: var(--maroon); text-decoration: none; font-weight: 700; }
+  .footer a:hover { text-decoration: underline; }
+  .footer .credit { margin-top: 6px; }
+
+  /* ---------- Print ---------- */
+  @media print {
+    body { background: #fff; font-size: 12px; }
+    .topbar { position: static; box-shadow: none; }
+    .topbar .actions { display: none; }
+    .wrap { padding: 8px 0; max-width: 100%; }
+    .panel { box-shadow: none; border: 1px solid #ddd; page-break-inside: avoid; }
+    .btn { display: none !important; }
+  }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand-block">
+      <div class="logo">JBF</div>
+      <div>
+        <h1>JAI BHADRA FOUNDATION</h1>
+        <div class="sub">Lucky Draw &mdash; Rules &amp; Prizes</div>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-ghost" onclick="window.open('/', '_self')">Admin Login</button>
+      <button class="btn btn-gold" onclick="window.print()">&#128424; Print / Save PDF</button>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <!-- Event details -->
+    <div class="panel">
+      <div class="panel-head"><h2>&#127903; Event Details</h2></div>
+      <div class="panel-body">
+        <div class="event-grid">
+          <div class="event-item">
+            <div class="lbl">Draw Date</div>
+            <div class="val">Sunday, 06 September 2026</div>
+          </div>
+          <div class="event-item">
+            <div class="lbl">Venue</div>
+            <div class="val">Golden Star Banquet (Petals Hall), Swarn Jayanti Park (Japanese Park), Rohini, Sector-10</div>
+          </div>
+          <div class="event-item">
+            <div class="lbl">Website</div>
+            <div class="val"><a href="https://jaibhadra.org" target="_blank" rel="noopener" style="color:var(--maroon);">www.jaibhadra.org</a></div>
+          </div>
+          <div class="event-item">
+            <div class="lbl">Coupon Price</div>
+            <div class="val">&#8377;100 each (sets of 1 / 5 / 10)</div>
+          </div>
+          <div class="event-item">
+            <div class="lbl">Eligible Pool</div>
+            <div class="val">ALL 9999 coupons (1&ndash;9999), sold or unsold &mdash; 1-in-9999 chance each</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rules -->
+    <div class="panel">
+      <div class="panel-head"><h2>&#128221; Lucky Draw Rules</h2></div>
+      <div class="panel-body">
+        <ol class="rules">
+          <li>ALL <strong>9999 coupons</strong> (numbers 1&ndash;9999) are eligible for the draw &mdash; whether sold or unsold. Each coupon has a <strong>1-in-9999</strong> chance of being drawn.</li>
+          <li>Each coupon costs <strong>&#8377;100</strong> and is sold in sets of 1, 5 or 10.</li>
+          <li>The draw is conducted <strong>electronically</strong>. The system randomly picks <strong>50 distinct winning coupon numbers</strong> from all 9999 coupons &mdash; no coupon can win twice.</li>
+          <li>If an <strong>unsold coupon</strong> is drawn, the winner is marked <strong>UNSOLD</strong> &mdash; the prize is unclaimed and there is no re-draw.</li>
+          <li>Winners are revealed in the order: <strong>Consolation D &rarr; C &rarr; B &rarr; A</strong>, then <strong>10th Prize &rarr; 1st Prize</strong> (grand finale).</li>
+          <li>Results are <strong>saved permanently</strong> once the draw is conducted and cannot be re-run until the organisers clear them.</li>
+          <li>Sold winners must <strong>present the winning coupon</strong> (or matching coupon-number proof) to claim their prize.</li>
+          <li>Prizes are distributed <strong>at the venue on draw day</strong>. Please carry valid identification.</li>
+          <li>The decision of the <strong>organisers is final</strong> and binding on all contestants.</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- Prizes -->
+    <div class="panel">
+      <div class="panel-head"><h2>&#127873; Prizes &mdash; 50 Winners</h2></div>
+      <div class="panel-body">
+        <div class="prize-section-title">&#127942; Main Prizes (10)</div>
+        <table class="prizes">
+          <thead><tr><th>Prize</th><th>Gift Item</th></tr></thead>
+          <tbody>
+            <tr><td class="rank">1st</td><td class="item">&#128187; HP Professional 15 Laptop (i3 14th Gen, 8GB, 512GB SSD)</td></tr>
+            <tr><td class="rank">2nd</td><td class="item">&#129522; Whirlpool Refrigerator 184L</td></tr>
+            <tr><td class="rank">3rd</td><td class="item">&#127744; Whirlpool Washing Machine (fully automatic)</td></tr>
+            <tr><td class="rank">4th</td><td class="item">&#128241; Realme Narzo 80 Lite Smartphone</td></tr>
+            <tr><td class="rank">5th</td><td class="item">&#128250; Realme TechLife 32&quot; Smart TV</td></tr>
+            <tr><td class="rank">6th</td><td class="item">&#127859; Panasonic 20L Microwave Oven</td></tr>
+            <tr><td class="rank">7th</td><td class="item">&#128293; Philips NA120/00 Air Fryer</td></tr>
+            <tr><td class="rank">8th</td><td class="item">&#129866; Philips HD2288/00 Sandwich Maker</td></tr>
+            <tr><td class="rank">9th</td><td class="item">&#129525; Havells Mixer Grinder</td></tr>
+            <tr><td class="rank">10th</td><td class="item">&#128709; Aristocrat Trolley Bag</td></tr>
+          </tbody>
+        </table>
+
+        <div class="prize-section-title">&#127881; Consolation Prizes (40 &mdash; 10 each)</div>
+        <table class="prizes">
+          <thead><tr><th>Category</th><th>Gift Item</th><th>Qty</th></tr></thead>
+          <tbody>
+            <tr><td class="rank">A</td><td class="item">&#127860; Borosil Dinner Set</td><td class="qty">10</td></tr>
+            <tr><td class="rank">B</td><td class="item">&#9749; Milton 1.8L Electric Kettle</td><td class="qty">10</td></tr>
+            <tr><td class="rank">C</td><td class="item">&#127911; Boat Earphones</td><td class="qty">10</td></tr>
+            <tr><td class="rank">D</td><td class="item">&#128168; Havells Electric Press / Iron</td><td class="qty">10</td></tr>
+          </tbody>
+        </table>
+
+        <div class="note">
+          <strong>Total:</strong> 50 prizes to be won &mdash; 10 main prizes plus 40 consolation prizes (10 each across categories A, B, C and D).
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    <a href="https://jaibhadra.org" target="_blank" rel="noopener">www.jaibhadra.org</a>
+    <div class="credit">JAI BHADRA FOUNDATION &middot; Serving with devotion &middot; Spreading hope through every coupon</div>
+  </div>
+</body>
+</html>

@@ -100,11 +100,26 @@ def index():
     return resp
 
 
+@app.route("/rules")
+def rules_page():
+    """Public Lucky Draw rules + prizes page (no login required) so
+    contestants can view the rules and print them."""
+    import os
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates", "rules.html")
+    with open(p, "r", encoding="utf-8") as f:
+        html = f.read()
+    resp = Response(html, mimetype="text/html")
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
+
+
 # ------------------------------------------------------------------
 # Auth
 # ------------------------------------------------------------------
 
-PUBLIC_PATHS = {"/login", "/api/login", "/logout"}
+PUBLIC_PATHS = {"/login", "/api/login", "/logout", "/rules"}
 
 @app.before_request
 def _require_login():
@@ -529,8 +544,9 @@ def api_coupon_render(sno):
 
 @app.route("/api/draw", methods=["POST"])
 def api_draw():
-    """Conduct the Lucky Draw: pick 50 distinct winners from sold coupons
-    (40 consolation + 10 main) and save the results to the workbook.
+    """Conduct the Lucky Draw: pick 50 distinct winners from ALL 9999
+    coupons (1-MAX_COUPON, sold or unsold — 1-in-9999 chance each) and
+    save the results.  Unsold winning coupons are marked buyer="UNSOLD".
     Returns the winners list."""
     try:
         if rohit.has_draw_results():
@@ -546,7 +562,7 @@ def api_draw():
         return _err(str(exc), 500)
 
     return _ok({
-        "message": f"Draw complete! 50 winners selected (40 consolation + 10 main).",
+        "message": f"Draw complete! 50 winners selected from all {rohit.MAX_COUPON} coupons (40 consolation + 10 main). Unsold winning coupons are marked UNSOLD.",
         "results": results,
     })
 

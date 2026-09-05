@@ -2857,17 +2857,21 @@ CONSOLATION_BY_CAT = {cat: (cat, gift, qty)
                       for cat, gift, qty in CONSOLATION_PRIZES}
 
 
-def _select_stratified_winners(sold_numbers, rows):
-    """Pick 50 winning coupon numbers from the sold pool by uniform random
-    sampling — completely fair, no pattern.
+def _select_stratified_winners(rows):
+    """Pick 50 winning coupon numbers from the ENTIRE coupon pool
+    (1 .. MAX_COUPON, i.e. all 9999 coupons) by uniform random sampling.
 
-    Each individual coupon is one ticket: every sold coupon has an exactly
-    equal chance of being drawn (50 / N where N is the number of sold
-    coupons).  A buyer who holds 10 coupons therefore has 10x the odds of
-    a buyer who holds 1 — fair by spend.  There is NO banding, NO sorting,
-    and NO spreading: the 50 winners are drawn uniformly without
-    replacement via random.sample, so every sold coupon has exactly the
-    same probability of being chosen and no coupon can win twice.
+    Every coupon number — sold or unsold — has an exactly equal chance of
+    being drawn (50 / MAX_COUPON, i.e. 1-in-9999 per coupon).  A buyer who
+    holds 10 coupons has 10x the odds of a buyer who holds 1 (fair by
+    spend).  There is NO banding, NO sorting, and NO spreading: the 50
+    winners are drawn uniformly without replacement via random.sample, so
+    every coupon has exactly the same probability of being chosen and no
+    coupon can win twice.
+
+    If a drawn coupon is UNSOLD (no sale row covers it), the winner is
+    recorded with buyer="UNSOLD" and type="UNSOLD" — the prize is simply
+    unclaimed; there is no re-draw.
 
     The 50 winners are split into the reveal/celebration order:
         Consolation D (10) -> C (10) -> B (10) -> A (10)
@@ -2884,14 +2888,8 @@ def _select_stratified_winners(sold_numbers, rows):
     coupon_range_end, coupon_display, set_range, buyer, phone, type,
     drawn_at (filled in by the caller).  The caller is responsible for
     setting drawn_at and persisting the results."""
-    n = len(sold_numbers)
-    if n < TOTAL_WINNERS:
-        raise RuntimeError(
-            f"Not enough sold coupons to draw {TOTAL_WINNERS} winners "
-            f"(have {n} sold coupon numbers, need {TOTAL_WINNERS})."
-        )
-
-    winners = random.sample(list(sold_numbers), TOTAL_WINNERS)
+    pool = list(range(1, MAX_COUPON + 1))
+    winners = random.sample(pool, TOTAL_WINNERS)
 
     drawn_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -2899,12 +2897,12 @@ def _select_stratified_winners(sold_numbers, rows):
         row = _sale_row_for_coupon(rows, coupon)
         if row is None:
             s = e = coupon
-            buyer = None
+            buyer = "UNSOLD"
             phone = None
             address = None
             qty = None
             date_sold = None
-            stype = "SALE"
+            stype = "UNSOLD"
         else:
             try:
                 s = int(row[4])
@@ -2917,7 +2915,12 @@ def _select_stratified_winners(sold_numbers, rows):
             qty = row[6] if len(row) > 6 and row[6] else None
             date_sold = row[7] if len(row) > 7 and row[7] else None
             stype = row[8] if len(row) >= 9 and row[8] else "SALE"
-        buyer_disp = buyer if buyer else "<PHYSICAL>"
+        if buyer == "UNSOLD":
+            buyer_disp = "UNSOLD"
+        elif buyer:
+            buyer_disp = buyer
+        else:
+            buyer_disp = "<PHYSICAL>"
         set_range = (f"{s:04d}-{e:04d}" if s != e else "")
         coupon_display = (f"{coupon:04d}" +
                           (f" (set {set_range})" if set_range else ""))
@@ -3060,13 +3063,10 @@ def _xlsx_get_draw_results():
 
 def _xlsx_draw_winners():
     """Conduct the Lucky Draw: pick 50 winning coupon numbers uniformly at
-    random from the sold pool — completely fair, no pattern.
-
-    Each individual coupon is one ticket — a buyer who holds 10 coupons has
-    10x the odds of a buyer who holds 1 (fair by spend).  The 50 winners are
-    drawn with random.sample (uniform without replacement), so every sold
-    coupon has an exactly equal chance of winning and there is no banding
-    or sorting that would push the 1st prize to the lowest coupon number.
+    random from the ENTIRE pool of 9999 coupons (1..MAX_COUPON) — sold or
+    unsold.  Every coupon has a 1-in-9999 chance.  Unsold winning coupons
+    are recorded with buyer="UNSOLD" / type="UNSOLD" — the prize is simply
+    unclaimed, there is no re-draw.
 
     Saves the results to a 'Lucky Draw' sheet in coupon_sales.xlsx and
     returns the list of result dicts.
@@ -3081,15 +3081,8 @@ def _xlsx_draw_winners():
             "conducting a new draw."
         )
 
-    sold_numbers = get_sold_coupon_numbers()
-    if len(sold_numbers) < TOTAL_WINNERS:
-        raise RuntimeError(
-            f"Not enough sold coupons to draw {TOTAL_WINNERS} winners "
-            f"(have {len(sold_numbers)} sold coupon numbers, need {TOTAL_WINNERS})."
-        )
-
     rows = _get_sales_rows()
-    results = _select_stratified_winners(sold_numbers, rows)
+    results = _select_stratified_winners(rows)
     _xlsx_save_draw_results(results)
     return results
 
@@ -3545,13 +3538,11 @@ def _pg_get_sold_sale_rows():
 
 def _pg_draw_winners():
     """Conduct the Lucky Draw (Postgres mode): pick 50 winning coupon
-    numbers uniformly at random from the sold pool — completely fair, no
-    pattern.  Each individual coupon is one ticket (fair by spend — a
-    10-coupon buyer has 10x the odds of a 1-coupon buyer).  The 50 winners
-    are drawn with random.sample (uniform without replacement), so every
-    sold coupon has an exactly equal chance of winning and there is no
-    banding or sorting that would push the 1st prize to the lowest coupon
-    number.  Saves results to the draw_results table and returns them."""
+    numbers uniformly at random from the ENTIRE pool of 9999 coupons
+    (1..MAX_COUPON) — sold or unsold.  Every coupon has a 1-in-9999
+    chance.  Unsold winning coupons are recorded with buyer="UNSOLD" /
+    type="UNSOLD" — the prize is simply unclaimed, there is no re-draw.
+    Saves results to the draw_results table and returns them."""
     _pg_ensure()
     if _pg_has_draw_results():
         raise RuntimeError(
@@ -3559,15 +3550,8 @@ def _pg_draw_winners():
             "conducting a new draw."
         )
 
-    sold_numbers = get_sold_coupon_numbers()
-    if len(sold_numbers) < TOTAL_WINNERS:
-        raise RuntimeError(
-            f"Not enough sold coupons to draw {TOTAL_WINNERS} winners "
-            f"(have {len(sold_numbers)} sold coupon numbers, need {TOTAL_WINNERS})."
-        )
-
     rows = _pg_list_sales(print_it=False)
-    results = _select_stratified_winners(sold_numbers, rows)
+    results = _select_stratified_winners(rows)
 
     # Persist to draw_results table.
     conn = _pg_conn()
@@ -3932,8 +3916,9 @@ def view_gaps():
 
 
 def prompt_lucky_draw():
-    """Conduct the Lucky Draw - pick 50 distinct winners from sold coupons
-    (40 consolation + 10 main) and save the results to the Excel workbook.
+    """Conduct the Lucky Draw - pick 50 distinct winners from all 9999
+    coupons (40 consolation + 10 main) and save the results to the Excel
+    workbook.  Unsold winning coupons are marked UNSOLD.
     Returns True to continue the menu loop."""
     print()
     print("=" * 60)
@@ -3950,23 +3935,15 @@ def prompt_lucky_draw():
         print("Draw results already exist. Clear them first (menu option 13).")
         return True
 
-    try:
-        pool = _get_sold_sale_rows()
-    except RuntimeError as exc:
-        print(f"ERROR: {exc}")
-        return True
-
-    print(f"Total sold entries (buyers/sets) eligible: {len(pool)}")
-    if len(pool) < TOTAL_WINNERS:
-        print(f"ERROR: Need at least {TOTAL_WINNERS} sold entries (buyers/sets) "
-              f"to draw {TOTAL_WINNERS} winners.")
-        return True
+    print(f"Eligible pool: ALL {MAX_COUPON} coupons (1-{MAX_COUPON}), "
+          f"sold or unsold (1-in-{MAX_COUPON} chance each).")
 
     print()
     print("Rules:")
     print(f"  - {TOTAL_WINNERS} distinct winning coupons are drawn uniformly at random.")
-    print("  - Every sold coupon has exactly equal odds (fair by spend).")
+    print(f"  - Every coupon (1-{MAX_COUPON}) has exactly equal odds (1-in-{MAX_COUPON}).")
     print("  - No coupon can win more than once.")
+    print("  - Unsold winning coupons are marked UNSOLD — no re-draw.")
     print("  - 10 winners each for Consolation D, C, B, A, then 10 main prizes.")
     print()
     print("Consolation prizes (10 each):")

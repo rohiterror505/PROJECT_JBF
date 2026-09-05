@@ -482,7 +482,7 @@ class DrawActionWorker(QThread):
         try:
             if tag == "draw":
                 results = rohit.draw_winners()
-                self.done.emit(tag, True, "Draw complete! 50 winners selected (40 consolation + 10 main).", results)
+                self.done.emit(tag, True, "Draw complete! 50 winners selected from all 9999 coupons (40 consolation + 10 main). Unsold winners marked UNSOLD.", results)
             elif tag == "clear":
                 cleared = rohit.clear_draw_results()
                 msg = ("Lucky Draw results cleared." if cleared
@@ -1554,10 +1554,11 @@ class LuckyDrawTab(QWidget):
         lay.addWidget(title)
 
         info = QLabel(
-            "Draws 50 distinct winning coupon numbers from all sold coupons - "
-            "10 each for Consolation D, C, B, A (40 consolation) plus 10 main "
-            "prizes (1st-10th). Results are saved to the workbook and cannot "
-            "be re-run until cleared."
+            "Draws 50 distinct winning coupon numbers from ALL 9999 coupons "
+            "(1-9999, sold or unsold - 1-in-9999 chance each) - 10 each for "
+            "Consolation D, C, B, A (40 consolation) plus 10 main prizes "
+            "(1st-10th). Unsold winning numbers are marked UNSOLD. Results "
+            "are saved to the workbook and cannot be re-run until cleared."
         )
         info.setWordWrap(True)
         info.setStyleSheet(f"color:{GREY};")
@@ -1632,15 +1633,16 @@ class LuckyDrawTab(QWidget):
         confirm = QMessageBox.question(
             self, "Confirm Draw",
             "Conduct the Lucky Draw now?\n"
-            "50 distinct winners will be randomly picked from sold coupons "
-            "(40 consolation + 10 main).\n"
+            "50 distinct winners will be randomly picked from ALL 9999 coupons "
+            "(1-in-9999 chance each).\n"
+            "Unsold winning numbers will be marked UNSOLD.\n"
             "This cannot be undone."
         )
         if confirm != QMessageBox.StandardButton.Yes:
             return
         self.draw_btn.setEnabled(False)
         self.clear_btn.setEnabled(False)
-        self.msg_label.setText("Drawing 50 winners...")
+        self.msg_label.setText("Drawing 50 winners from all 9999 coupons...")
         self._start_worker("draw")
 
     def clear_results(self):
@@ -1720,13 +1722,20 @@ class LuckyDrawTab(QWidget):
                     str(r.get("type", "")),
                     cat_label,
                 ]
+                is_unsold = (r.get("type") == "UNSOLD" or r.get("buyer") == "UNSOLD")
                 for c, v in enumerate(vals):
-                    self.table.setItem(i, c, QTableWidgetItem(v))
+                    item = QTableWidgetItem(v)
+                    if is_unsold:
+                        if c == 5:
+                            item.setForeground(QColor(MAROON))
+                        else:
+                            item.setForeground(QColor(GREY))
+                    self.table.setItem(i, c, item)
             self.table.resizeColumnsToContents()
         else:
             self.status_label.setText(
                 "No draw conducted yet. Click Conduct Draw to pick 50 winners "
-                "(40 consolation + 10 main)."
+                "from all 9999 coupons (40 consolation + 10 main)."
             )
             self.draw_btn.setEnabled(True)
             self.clear_btn.setEnabled(False)
