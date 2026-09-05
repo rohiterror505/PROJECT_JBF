@@ -1472,6 +1472,12 @@ async function api(url, opts) {
   try {
     const r = await fetch(url, opts);
     if (r.status === 401) { window.location.href = "/login"; throw new Error("Session expired. Please log in again."); }
+    const ct = r.headers.get("content-type") || "";
+    if (!ct.includes("application/json")) {
+      if (r.status >= 500) throw new Error("Server error. Please try again.");
+      if (ct.includes("text/html")) { window.location.href = "/login"; throw new Error("Session expired. Please log in again."); }
+      throw new Error("Unexpected response from server.");
+    }
     const j = await r.json();
     if (!j.success) throw new Error(j.error || "Unknown error");
     return j;

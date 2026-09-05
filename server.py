@@ -81,6 +81,15 @@ def _err(msg, code=400):
     return jsonify({"success": False, "error": str(msg)}), code
 
 
+@app.errorhandler(500)
+def _handle_500(e):
+    """Return JSON (not HTML) for 500 errors on API paths so the frontend
+    never receives HTML when it expects JSON."""
+    if request.path.startswith("/api/"):
+        return jsonify({"success": False, "error": "Internal server error. Please try again."}), 500
+    return _err("Internal server error", 500)
+
+
 # ------------------------------------------------------------------
 # Page
 # ------------------------------------------------------------------
@@ -321,7 +330,7 @@ def api_sale():
     """Record a normal sale.  In Excel mode a PNG is saved to disk; in
     Postgres (cloud) mode the coupon is rendered on demand later, so no
     file is written here."""
-    data = request.get_json(force=True)
+    data = request.get_json(silent=True) or {}
     try:
         name = (data.get("name") or "").strip()
         phone = (data.get("phone") or "").strip()
@@ -363,7 +372,7 @@ def api_sale():
 @app.route("/api/physical", methods=["POST"])
 def api_physical():
     """Generate physical coupon sets (no buyer)."""
-    data = request.get_json(force=True)
+    data = request.get_json(silent=True) or {}
     try:
         set_size = int(data.get("set_size", 10))
         start = int(data.get("start"))
@@ -428,7 +437,7 @@ def api_sale_by_sno(sno):
             return _err(str(exc), 500)
 
     # PUT
-    data = request.get_json(force=True)
+    data = request.get_json(silent=True) or {}
     try:
         name = (data.get("name") or "").strip()
         phone = (data.get("phone") or "").strip()
@@ -448,7 +457,7 @@ def api_sale_by_sno(sno):
 
 @app.route("/api/delete/physical/range", methods=["POST"])
 def api_delete_physical_range():
-    data = request.get_json(force=True)
+    data = request.get_json(silent=True) or {}
     try:
         s = int(data.get("start"))
         e = int(data.get("end"))
@@ -465,7 +474,7 @@ def api_delete_physical_range():
 
 @app.route("/api/delete/physical/all", methods=["POST"])
 def api_delete_physical_all():
-    data = request.get_json(force=True) if request.data else {}
+    data = request.get_json(silent=True) or {} if request.data else {}
     del_pngs = bool(data.get("delete_pngs", True))
     try:
         count = rohit.delete_all_physical(delete_pngs=del_pngs)
@@ -476,7 +485,7 @@ def api_delete_physical_all():
 
 @app.route("/api/delete/all", methods=["POST"])
 def api_delete_all_sales():
-    data = request.get_json(force=True) if request.data else {}
+    data = request.get_json(silent=True) or {} if request.data else {}
     del_pngs = bool(data.get("delete_pngs", False))
     try:
         count = rohit.delete_all_sales(delete_pngs=del_pngs)
